@@ -813,6 +813,14 @@ p {
   background: color-mix(in srgb, var(--mood-color), transparent 86%);
 }
 
+.mood-grid button > span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 29px;
+  line-height: 1;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35));
+}
+
 .mood-grid .status-glyph {
   width: 32px;
   height: 32px;
