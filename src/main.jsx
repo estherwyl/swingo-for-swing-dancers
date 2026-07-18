@@ -37,14 +37,14 @@ const STATUSES = {
 const STATUS_ORDER = ['first_learned', 'learned_again', 'practiced', 'used_in_social', 'performed'];
 
 const MOODS = {
-  proud: { label: 'Proud', color: '#E7B44C', emoji: '🌟' },
-  excited: { label: 'Excited', color: '#E86C58', emoji: '⚡' },
-  flowing: { label: 'Flowing', color: '#6FBF92', emoji: '🌊' },
-  curious: { label: 'Curious', color: '#6FA8CF', emoji: '👀' },
-  challenged: { label: 'Challenged', color: '#C46A7C', emoji: '🧩' },
-  confused: { label: 'Confused', color: '#9B8BC4', emoji: '🌀' },
-  frustrated: { label: 'Frustrated', color: '#D9704A', emoji: '😮‍💨' },
-  inspired: { label: 'Inspired', color: '#E7C15A', emoji: '✨' },
+  proud: { label: 'Proud', color: '#E7B44C', emoji: '🥹' },
+  excited: { label: 'Excited', color: '#E86C58', emoji: '🥳' },
+  flowing: { label: 'Flowing', color: '#6FBF92', emoji: '😌' },
+  curious: { label: 'Curious', color: '#6FA8CF', emoji: '🤔' },
+  challenged: { label: 'Challenged', color: '#C46A7C', emoji: '😤' },
+  confused: { label: 'Confused', color: '#9B8BC4', emoji: '😵‍💫' },
+  frustrated: { label: 'Frustrated', color: '#D9704A', emoji: '😣' },
+  inspired: { label: 'Inspired', color: '#E7C15A', emoji: '🤩' },
 };
 
 const MOOD_ORDER = ['proud', 'excited', 'flowing', 'curious', 'challenged', 'confused', 'frustrated', 'inspired'];
