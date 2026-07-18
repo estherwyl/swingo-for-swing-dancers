@@ -1,3 +1,6 @@
 node_modules
 dist
 *.png
+!public/
+!public/assets/
+!public/assets/**/*.png
