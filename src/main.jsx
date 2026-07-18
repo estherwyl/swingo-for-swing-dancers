@@ -523,7 +523,7 @@ function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
         </p>
         {mood && (
           <span className="mood-chip">
-            <i style={{ background: mood.color }} />
+            <span aria-hidden="true">{mood.emoji}</span>
             {mood.label}
           </span>
         )}
@@ -823,7 +823,7 @@ function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin }) {
         {family.label} · {status.label}
         {mood && (
           <>
-            <i style={{ background: mood.color }} /> {mood.label}
+            <span aria-hidden="true">{mood.emoji}</span> {mood.label}
           </>
         )}
       </p>

@@ -403,13 +403,6 @@ p {
   font-weight: 600;
 }
 
-.mood-chip i,
-.success-sub i {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-
 .note-preview {
   max-width: 80%;
   margin-top: 11px;
