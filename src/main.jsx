@@ -1,65 +1,56 @@
-import React, {
-  memo,
-  startTransition,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  ArrowLeft,
   CalendarDays,
   Check,
-  ChevronRight,
+  ChevronLeft,
   CirclePlus,
-  Dumbbell,
   Filter,
-  Footprints,
-  List,
-  Menu,
-  Music2,
-  Pencil,
-  Plus,
+  ListChecks,
+  MapPin,
   Search,
   Settings,
   Share2,
   Sparkles,
-  Star,
-  Trophy,
-  Users,
+  UserRound,
   WandSparkles,
   X,
 } from 'lucide-react';
 import './styles.css';
 
-const FAMILY_META = {
-  'Lindy Hop': {
-    key: 'lindy',
-    color: '#ffc557',
-    deep: '#5a390d',
-    gradient: 'linear-gradient(135deg, #f8bd48 0%, #855c19 100%)',
-    icon: Users,
-  },
-  'Solo Jazz': {
-    key: 'solo',
-    color: '#66d58a',
-    deep: '#113821',
-    gradient: 'linear-gradient(135deg, #49ca75 0%, #082a19 100%)',
-    icon: Footprints,
-  },
-  Charleston: {
-    key: 'charleston',
-    color: '#ff604d',
-    deep: '#4c1914',
-    gradient: 'linear-gradient(135deg, #eb4a3b 0%, #7f211b 100%)',
-    icon: Music2,
-  },
+const STORAGE_KEY = 'swingo_v2';
+
+const FAMILIES = {
+  lindy: { label: 'Lindy Hop', color: '#E7B44C', dark: '#231708' },
+  solo: { label: 'Solo Jazz', color: '#6FBF92', dark: '#08160E' },
+  charleston: { label: 'Charleston', color: '#E8705C', dark: '#230B08' },
 };
 
-const MOVE_TAXONOMY = {
-  'Lindy Hop': [
+const STATUSES = {
+  first_learned: { label: 'Learned for the first time', short: 'First time', statement: 'I learned' },
+  learned_again: { label: 'Learned again', short: 'Learned again', statement: 'I learned again' },
+  practiced: { label: 'Practiced', short: 'Practiced', statement: 'I practiced' },
+  used_in_social: { label: 'Used in social', short: 'Social', statement: 'I used in social' },
+  performed: { label: 'Performed', short: 'Performed', statement: 'I performed' },
+};
+
+const STATUS_ORDER = ['first_learned', 'learned_again', 'practiced', 'used_in_social', 'performed'];
+
+const MOODS = {
+  proud: { label: 'Proud', color: '#E7B44C', emoji: '🥳' },
+  excited: { label: 'Excited', color: '#E86C58', emoji: '🤩' },
+  flowing: { label: 'Flowing', color: '#6FBF92', emoji: '😌' },
+  curious: { label: 'Curious', color: '#6FA8CF', emoji: '🧐' },
+  challenged: { label: 'Challenged', color: '#C46A7C', emoji: '😤' },
+  confused: { label: 'Confused', color: '#9B8BC4', emoji: '😵‍💫' },
+  frustrated: { label: 'Frustrated', color: '#D9704A', emoji: '😮‍💨' },
+  inspired: { label: 'Inspired', color: '#E7C15A', emoji: '✨' },
+};
+
+const MOOD_ORDER = ['proud', 'excited', 'flowing', 'curious', 'challenged', 'confused', 'frustrated', 'inspired'];
+
+const TAXONOMY = {
+  lindy: [
     '6-count basic',
     '8-count basic',
     'Around the World',
@@ -70,15 +61,29 @@ const MOVE_TAXONOMY = {
     'Drags',
     'Flip-flops',
     'Frisbee',
+    'Glide to the side, scoots',
     'Gliding',
+    'Jig Kicks',
+    'Windmill',
+    'Minnie Dip',
+    'Points',
+    'Pretzel',
+    'Promenade',
+    "Sailor's",
     'Send Out',
     'Side Pass',
     "Skater's",
+    "Reverse Skater's",
+    'Sugar Push',
     'Swingout',
+    'Lindy turn',
+    'Swivels',
+    'Tangos',
     'Texas Tommy',
     'Tuck Turn',
+    'Wheel',
   ],
-  'Solo Jazz': [
+  solo: [
     'Apple Jacks',
     'Boogie Back',
     'Boogie Forward',
@@ -86,17 +91,24 @@ const MOVE_TAXONOMY = {
     'Camel Walks',
     'Chugs',
     'Fall off the Log',
-    'Hangman/ Fish out of Water',
-    'Heel Toe/ Happy Feet/ V-Step',
+    'Hangman',
+    'Heel Toe',
+    'James Brown',
     'Low-downs',
+    'Mooches',
+    'Over The Top',
+    'Pimp Walk',
+    'Rocks, Hallelujahs',
     'Shorty George',
     'Slip Slops',
     'Suzy Qs',
     'Tacky Annies',
     'Tangos',
     'Tick Tocks',
+    'Trenches',
+    'Truckin',
   ],
-  Charleston: [
+  charleston: [
     'Side by side',
     'Slide back',
     'Fishtail',
@@ -104,714 +116,726 @@ const MOVE_TAXONOMY = {
     'Hand to hand',
     'Airplane',
     'Skip up',
-    "Johnnie's Drop",
+    "Johnnie's drop",
     'Tandem',
     'Windscreen wiper',
     'Butterfly exit',
   ],
 };
 
-const STATUS_OPTIONS = [
-  { label: 'Learned for the first time', short: 'First time', icon: Star },
-  { label: 'Learned again', short: 'Learned again', icon: CirclePlus },
-  { label: 'Practiced', short: 'Practiced', icon: Dumbbell },
-  { label: 'Used in social', short: 'Social', icon: Users },
-  { label: 'Performed', short: 'Performed', icon: Trophy },
-];
+function slug(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
 
-const MOODS = [
-  { label: 'Proud', color: '#ffc557', glyph: 'arch' },
-  { label: 'Excited', color: '#ffc557', glyph: 'burst' },
-  { label: 'Flowing', color: '#5bd58a', glyph: 'wave' },
-  { label: 'Curious', color: '#ffc557', glyph: 'question' },
-  { label: 'Challenged', color: '#ff604d', glyph: 'zig' },
-  { label: 'Confused', color: '#87a88f', glyph: 'swirl' },
-  { label: 'Frustrated', color: '#ff402f', glyph: 'sun' },
-  { label: 'Inspired', color: '#ffc557', glyph: 'star' },
-];
+const ICON_SET = new Set(
+  Object.entries(TAXONOMY).flatMap(([family, moves]) =>
+    moves
+      .filter((move) => !(family === 'lindy' && move === 'Tangos'))
+      .map((move) => `${family}/${slug(move)}`),
+  ),
+);
 
-const INITIAL_ENTRIES = [
-  {
-    id: 'entry-1',
-    move: 'Shorty George',
-    family: 'Solo Jazz',
-    status: 'Learned for the first time',
-    mood: 'Proud',
-    note: 'Keep knees soft and stay playful with the rhythm. Need to work on the transition at the end.',
-    event: 'Savoy Beginners Class',
-    teacher: 'Jasper',
-    location: 'Savoy Studio',
-    date: '2026-07-14T19:41:00',
-  },
-  {
-    id: 'entry-2',
-    move: 'Swingout',
-    family: 'Lindy Hop',
-    status: 'Practiced',
-    mood: 'Challenged',
-    note: 'Timing felt clearer today. Starting to get the bounce.',
-    event: 'Monday Lindy',
-    teacher: 'Mina',
-    location: 'Downtown Studio',
-    date: '2026-07-13T18:22:00',
-  },
-  {
-    id: 'entry-3',
-    move: 'Tuck Turn',
-    family: 'Lindy Hop',
-    status: 'Used in social',
-    mood: 'Flowing',
-    note: 'Felt smooth in social dancing for the first time.',
-    event: 'Sunday Social',
+function iconSrc(family, moveName) {
+  const key = `${family}/${slug(moveName)}`;
+  return ICON_SET.has(key) ? `/assets/moves/${key}.png` : '';
+}
+
+function todayStr() {
+  const date = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function freshCheckin() {
+  return {
+    family: null,
+    moveName: null,
+    status: null,
+    mood: null,
+    note: '',
+    date: todayStr(),
+    cls: '',
     teacher: '',
-    location: 'Blue Room',
-    date: '2026-07-12T14:05:00',
-  },
-  {
-    id: 'entry-4',
-    move: 'Tacky Annies',
-    family: 'Solo Jazz',
-    status: 'Learned again',
-    mood: 'Inspired',
-    note: 'Teacher emphasized knees and groove. Much better.',
-    event: 'Solo Lab',
-    teacher: 'Ari',
-    location: 'Savoy Studio',
-    date: '2026-07-20T18:25:00',
-  },
-  {
-    id: 'entry-5',
-    move: 'Shorty George',
-    family: 'Solo Jazz',
-    status: 'Learned again',
-    mood: 'Proud',
-    note: 'Teacher emphasized knees and groove. Much better.',
-    event: 'Solo Lab',
-    teacher: 'Ari',
-    location: 'Savoy Studio',
-    date: '2026-07-20T18:25:00',
-  },
-  {
-    id: 'entry-6',
-    move: 'Shorty George',
-    family: 'Solo Jazz',
-    status: 'Practiced',
-    mood: 'Proud',
-    note: 'Timing felt clearer today. Starting to get the bounce.',
-    event: 'Practice Hour',
-    teacher: '',
-    location: 'Savoy Studio',
-    date: '2026-08-04T19:10:00',
-  },
-  {
-    id: 'entry-7',
-    move: '6-count basic',
-    family: 'Lindy Hop',
-    status: 'Practiced',
-    mood: 'Curious',
-    note: 'Cleaned up the rock step.',
-    event: 'Beginner Lindy',
-    teacher: 'Jasper',
-    location: 'Savoy Studio',
-    date: '2026-07-08T19:08:00',
-  },
-  {
-    id: 'entry-8',
-    move: 'Apple Jacks',
-    family: 'Solo Jazz',
-    status: 'Learned for the first time',
-    mood: 'Excited',
-    note: 'Tiny hops, relaxed shoulders.',
-    event: 'Solo Basics',
-    teacher: 'Mina',
-    location: 'Savoy Studio',
-    date: '2026-07-06T20:10:00',
-  },
-];
-
-const todayDate = '2026-07-14T20:07:00';
-
-function formatDate(value, style = 'long') {
-  const date = new Date(value);
-  if (style === 'short') {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+    location: '',
+  };
 }
 
-function formatTime(value) {
-  return new Date(value).toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function fmt(dateStr) {
+  const [year, month, day] = (dateStr || '2026-01-01').split('-').map(Number);
+  const date = new Date(year, (month || 1) - 1, day || 1);
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthName = months[(month || 1) - 1];
+  return {
+    md: `${monthName} ${day}`,
+    medium: `${monthName} ${day}, ${year}`,
+    full: `${weekdays[date.getDay()]} ${monthName} ${day}, ${year}`,
+  };
 }
 
-function statusShort(status) {
-  return STATUS_OPTIONS.find((item) => item.label === status)?.short ?? status;
+function sortKey(entry) {
+  return `${entry.date}T${entry.time || '00:00'}`;
 }
 
-function deriveMoveBank(entries, customMoves) {
-  const familyMoves = Object.entries(MOVE_TAXONOMY).flatMap(([family, moves]) =>
-    moves.map((move) => ({ move, family, custom: false })),
-  );
-  const custom = customMoves.map((move) => ({ ...move, custom: true }));
-  const lookup = new Map();
+function seedEntries() {
+  const rows = [
+    ['solo', 'Shorty George', 'practiced', 'proud', 'Timing felt clearer today. Starting to get the bounce.', '2026-07-10', '19:10', 'Savoy Beginners Class', 'Jasper', 'Savoy Studio'],
+    ['lindy', 'Swingout', 'practiced', 'challenged', 'Keep the stretch, don’t collapse the connection.', '2026-07-09', '18:22', 'Lindy Level 2', 'Mara', 'The Hall'],
+    ['lindy', 'Tuck Turn', 'used_in_social', 'flowing', 'Led it cleanly at the Tuesday social!', '2026-07-08', '22:05', 'Tuesday Social', '', 'The Hall'],
+    ['solo', 'Tacky Annies', 'first_learned', 'excited', 'So bouncy and fun.', '2026-07-06', '20:00', 'Solo Jazz Drop-in', 'Jasper', 'Savoy Studio'],
+    ['solo', 'Shorty George', 'learned_again', 'inspired', 'Teacher emphasized knees and groove. Much better!', '2026-07-02', '18:25', 'Solo Jazz Drop-in', 'Jasper', 'Savoy Studio'],
+    ['solo', 'Camel Walks', 'practiced', 'flowing', 'Smooth glide, stay low.', '2026-06-30', '19:30', '', '', ''],
+    ['lindy', 'Texas Tommy', 'first_learned', 'curious', 'Wrap and unwrap — still figuring out the hand.', '2026-06-27', '20:15', 'Lindy Level 2', 'Mara', 'The Hall'],
+    ['charleston', 'Side by side', 'first_learned', 'excited', 'Classic Charleston kicks, love it.', '2026-06-24', '19:00', 'Charleston Intro', 'Lena', 'The Hall'],
+    ['lindy', 'Swingout', 'learned_again', 'proud', 'Finally the rhythm clicked.', '2026-06-20', '18:40', 'Lindy Level 2', 'Mara', 'The Hall'],
+    ['solo', 'Apple Jacks', 'first_learned', 'challenged', 'Heels in, knees together — tricky.', '2026-06-18', '20:10', 'Solo Jazz Drop-in', 'Jasper', 'Savoy Studio'],
+    ['charleston', 'Fishtail', 'first_learned', 'flowing', 'Hips and travel.', '2026-06-15', '19:20', 'Charleston Intro', 'Lena', 'The Hall'],
+    ['lindy', '6-count basic', 'first_learned', 'proud', 'Where it all begins.', '2026-06-10', '18:30', 'Lindy Level 1', 'Mara', 'The Hall'],
+    ['solo', 'Suzy Qs', 'practiced', 'flowing', 'Crossing steps getting smoother.', '2026-06-06', '19:45', '', '', ''],
+    ['lindy', 'Tuck Turn', 'first_learned', 'curious', 'First real turn pattern.', '2026-06-02', '20:00', 'Lindy Level 1', 'Mara', 'The Hall'],
+    ['solo', 'Boogie Back', 'first_learned', 'excited', 'Travel back with style.', '2026-05-28', '19:15', 'Solo Jazz Drop-in', 'Jasper', 'Savoy Studio'],
+    ['solo', 'Shorty George', 'first_learned', 'proud', 'First time hearing this move name. So fun!', '2026-05-24', '19:41', 'Solo Jazz Drop-in', 'Jasper', 'Savoy Studio'],
+    ['charleston', 'Kick through', 'first_learned', 'inspired', 'Big kicks!', '2026-05-20', '19:00', 'Charleston Intro', 'Lena', 'The Hall'],
+    ['lindy', 'Lindy Circle', 'first_learned', 'curious', 'Rotating as a couple.', '2026-05-16', '18:50', 'Lindy Level 1', 'Mara', 'The Hall'],
+  ];
 
-  [...familyMoves, ...custom].forEach((item) => {
-    lookup.set(`${item.family}:${item.move}`, {
-      ...item,
-      logs: [],
-      firstLearned: null,
-      latestStatus: 'Not logged yet',
-      commonMood: 'Not yet',
-    });
-  });
+  return rows.map(([family, moveName, status, mood, note, date, time, cls, teacher, location], index) => ({
+    id: `seed-${index}`,
+    family,
+    moveName,
+    status,
+    mood,
+    note,
+    date,
+    time,
+    cls,
+    teacher,
+    location,
+  }));
+}
 
+function aggregateEntries(entries) {
+  const groups = new Map();
   entries.forEach((entry) => {
-    const key = `${entry.family}:${entry.move}`;
-    const existing =
-      lookup.get(key) ??
-      {
-        move: entry.move,
-        family: entry.family,
-        custom: true,
-        logs: [],
-        firstLearned: null,
-        latestStatus: 'Not logged yet',
-        commonMood: 'Not yet',
-      };
-    existing.logs = [...existing.logs, entry].toSorted(
-      (a, b) => new Date(b.date) - new Date(a.date),
-    );
-    lookup.set(key, existing);
+    const key = `${entry.family}|${entry.moveName}`;
+    groups.set(key, [...(groups.get(key) || []), entry]);
   });
 
-  return Array.from(lookup.values()).map((item) => {
-    if (item.logs.length === 0) return item;
-    const sortedAsc = item.logs.toSorted((a, b) => new Date(a.date) - new Date(b.date));
-    const moodCounts = new Map();
-    item.logs.forEach((log) => {
-      moodCounts.set(log.mood, (moodCounts.get(log.mood) ?? 0) + 1);
+  return Array.from(groups.entries()).map(([key, list]) => {
+    const sorted = list.toSorted((a, b) => sortKey(b).localeCompare(sortKey(a)));
+    const firstDate = list.map((entry) => entry.date).toSorted()[0];
+    const moodTally = new Map();
+    sorted.forEach((entry) => {
+      if (entry.mood) moodTally.set(entry.mood, (moodTally.get(entry.mood) || 0) + 1);
     });
-    const commonMood = Array.from(moodCounts.entries()).toSorted((a, b) => b[1] - a[1])[0][0];
+    const mood = Array.from(moodTally.entries()).toSorted((a, b) => b[1] - a[1])[0]?.[0] || null;
     return {
-      ...item,
-      firstLearned: sortedAsc[0].date,
-      latestStatus: item.logs[0].status,
-      commonMood,
+      key,
+      family: sorted[0].family,
+      moveName: sorted[0].moveName,
+      firstDate,
+      logs: sorted.length,
+      latestStatus: sorted[0].status,
+      latestSk: sortKey(sorted[0]),
+      mood,
+      hasSocial: sorted.some((entry) => entry.status === 'used_in_social'),
+      list: sorted,
     };
   });
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState('Journal');
-  const [entries, setEntries] = useState(INITIAL_ENTRIES);
-  const [customMoves, setCustomMoves] = useState([]);
-  const [selectedMove, setSelectedMove] = useState('Shorty George');
-  const [checkin, setCheckin] = useState(createFreshCheckin);
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('All');
-
-  const moveBank = useMemo(() => deriveMoveBank(entries, customMoves), [entries, customMoves]);
-  const entriesByDate = useMemo(
-    () => entries.toSorted((a, b) => new Date(b.date) - new Date(a.date)),
-    [entries],
-  );
-  const selectedMoveData = useMemo(
-    () => moveBank.find((item) => item.move === selectedMove) ?? moveBank[0],
-    [moveBank, selectedMove],
-  );
+  const [view, setView] = useState('journal');
+  const [step, setStep] = useState(0);
+  const [entries, setEntries] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      return stored?.entries?.length ? stored.entries : seedEntries();
+    } catch {
+      return seedEntries();
+    }
+  });
+  const [customMoves, setCustomMoves] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      return stored?.customMoves || [];
+    } catch {
+      return [];
+    }
+  });
+  const [checkin, setCheckin] = useState(freshCheckin);
+  const [moveSearch, setMoveSearch] = useState('');
+  const [bankSearch, setBankSearch] = useState('');
+  const [bankFilter, setBankFilter] = useState('all');
+  const [detailKey, setDetailKey] = useState(null);
+  const [detailFrom, setDetailFrom] = useState('journal');
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addingCustom, setAddingCustom] = useState(false);
+  const [customName, setCustomName] = useState('');
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    document.querySelectorAll('.phone-shell, .app-surface, .screen').forEach((element) => {
-      element.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    });
-  }, [activeTab, checkin.step, selectedMove]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, customMoves }));
+  }, [entries, customMoves]);
 
-  const navigate = useCallback((tab) => {
-    startTransition(() => setActiveTab(tab));
-  }, []);
+  useEffect(() => {
+    document.querySelector('.app-scroll')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [view, step, detailKey]);
 
-  const beginCheckin = useCallback(() => {
-    setCheckin(createFreshCheckin());
-    navigate('Check In');
-  }, [navigate]);
+  const bank = useMemo(() => aggregateEntries(entries), [entries]);
+  const entriesSorted = useMemo(() => entries.toSorted((a, b) => sortKey(b).localeCompare(sortKey(a))), [entries]);
 
-  const saveEntry = useCallback(
-    (draft) => {
-      const entry = {
-        id: `entry-${Date.now()}`,
-        move: draft.move,
-        family: draft.family,
-        status: draft.status,
-        mood: draft.mood,
-        note: draft.note,
-        event: draft.event,
-        teacher: draft.teacher,
-        location: draft.location,
-        date: todayDate,
-      };
-      setEntries((current) => [entry, ...current]);
-      setSelectedMove(draft.move);
-      setCheckin((current) => ({ ...current, step: 'success', savedEntry: entry }));
-    },
-    [],
-  );
+  function startCheckin(initial = freshCheckin(), nextStep = 0) {
+    setView('checkin');
+    setStep(nextStep);
+    setCheckin(initial);
+    setMoveSearch('');
+    setAddingCustom(false);
+    setCustomName('');
+    setOpenMenuId(null);
+  }
 
-  const addCustomMove = useCallback((family, move) => {
-    const normalized = move.trim();
-    if (!normalized) return;
-    setCustomMoves((current) => {
-      const exists = current.some(
-        (item) => item.family === family && item.move.toLowerCase() === normalized.toLowerCase(),
-      );
-      return exists ? current : [...current, { family, move: normalized }];
-    });
-    setCheckin((current) => ({ ...current, move: normalized, step: 'status' }));
-  }, []);
+  function goBack() {
+    if (view === 'detail') {
+      setView(detailFrom);
+      return;
+    }
+    if (view === 'checkin') {
+      if (step <= 0) setView('journal');
+      else setStep((current) => current - 1);
+      return;
+    }
+    setView('journal');
+  }
 
-  const tabProps = {
-    activeTab,
-    navigate,
+  function defaultStatus(family, moveName) {
+    return entries.some((entry) => entry.family === family && entry.moveName === moveName)
+      ? 'learned_again'
+      : 'first_learned';
+  }
+
+  function selectMove(moveName, family) {
+    setCheckin((current) => ({
+      ...current,
+      family,
+      moveName,
+      status: defaultStatus(family, moveName),
+    }));
+    setStep(2);
+  }
+
+  function saveCheckin() {
+    if (!checkin.family || !checkin.moveName) return;
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+    const entry = {
+      id: `entry-${Date.now()}`,
+      ...checkin,
+      date: checkin.date || todayStr(),
+      time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      status: checkin.status || 'first_learned',
+      note: checkin.note.trim(),
+    };
+    setEntries((current) => [entry, ...current]);
+    setStep(4);
+  }
+
+  const context = {
+    view,
+    setView,
+    step,
+    setStep,
     entries,
-    entriesByDate,
-    moveBank,
-    beginCheckin,
-    setSelectedMove,
-    selectedMoveData,
-    query,
-    setQuery,
-    filter,
-    setFilter,
+    setEntries,
+    entriesSorted,
+    bank,
     checkin,
     setCheckin,
-    saveEntry,
-    addCustomMove,
+    moveSearch,
+    setMoveSearch,
+    bankSearch,
+    setBankSearch,
+    bankFilter,
+    setBankFilter,
+    customMoves,
+    setCustomMoves,
+    customName,
+    setCustomName,
+    addingCustom,
+    setAddingCustom,
+    detailKey,
+    setDetailKey,
+    detailFrom,
+    setDetailFrom,
+    openMenuId,
+    setOpenMenuId,
+    settingsOpen,
+    setSettingsOpen,
+    startCheckin,
+    goBack,
+    selectMove,
+    saveCheckin,
   };
 
+  const showNav = view === 'journal' || view === 'moves' || view === 'wrapped' || view === 'detail' || (view === 'checkin' && step <= 2);
+
   return (
-    <main className="stage">
-      <section className="phone-shell" aria-label="Swingo MVP preview">
-        <div className="screen-glow" />
-        <div className="app-surface">
-          {activeTab === 'Journal' ? <JournalScreen key="journal" {...tabProps} /> : null}
-          {activeTab === 'Check In' ? <CheckInScreen key={`check-${checkin.step}`} {...tabProps} /> : null}
-          {activeTab === 'Moves' ? <MoveBankScreen key="moves" {...tabProps} /> : null}
-          {activeTab === 'Wrapped' ? <WrappedScreen key="wrapped" {...tabProps} /> : null}
-          {activeTab === 'Detail' ? <MoveDetailScreen key={selectedMove} {...tabProps} /> : null}
+    <main className="swingo-stage">
+      <section className="app-shell" aria-label="Swingo app">
+        <div className="app-scroll">
+          {view === 'journal' && <JournalScreen {...context} />}
+          {view === 'checkin' && <CheckinScreen {...context} />}
+          {view === 'moves' && <MoveBankScreen {...context} />}
+          {view === 'detail' && <MoveDetailScreen {...context} />}
+          {view === 'wrapped' && <WrappedScreen {...context} />}
         </div>
+        {showNav && <BottomNav view={view} detailFrom={detailFrom} startCheckin={startCheckin} setView={setView} />}
       </section>
     </main>
   );
 }
 
-function createFreshCheckin() {
-  return {
-    step: 'family',
-    family: '',
-    move: '',
-    status: '',
-    mood: 'Proud',
-    note: '',
-    event: 'Savoy Beginners Class',
-    teacher: 'Jasper',
-    location: 'Savoy Studio',
-    savedEntry: null,
-  };
-}
+function JournalScreen({
+  entries,
+  setEntries,
+  entriesSorted,
+  bank,
+  setView,
+  setDetailKey,
+  setDetailFrom,
+  openMenuId,
+  setOpenMenuId,
+  settingsOpen,
+  setSettingsOpen,
+  startCheckin,
+}) {
+  const hasEntries = entries.length > 0;
 
-const Brand = memo(function Brand() {
-  return (
-    <div className="brand">
-      <span>Swingo</span>
-      <Sparkles size={17} aria-hidden="true" />
-    </div>
-  );
-});
-
-function ScreenHeader({ title, eyebrow, onBack, action }) {
-  return (
-    <header className="screen-header">
-      {onBack ? (
-        <button className="icon-button" type="button" onClick={onBack} aria-label="Back">
-          <ArrowLeft size={21} />
-        </button>
-      ) : null}
-      <div className="screen-title-block">
-        {title ? <h1>{title}</h1> : null}
-        {eyebrow ? <span className={`header-eyebrow ${title ? 'below' : ''}`}>{eyebrow}</span> : null}
-      </div>
-      {action ?? <span className="header-spacer" />}
-    </header>
-  );
-}
-
-function JournalScreen({ entriesByDate, moveBank, beginCheckin, navigate, setSelectedMove }) {
-  const loggedMoves = useMemo(() => moveBank.filter((item) => item.logs.length > 0).length, [moveBank]);
+  function openDetail(entry) {
+    setDetailKey(`${entry.family}|${entry.moveName}`);
+    setDetailFrom('journal');
+    setOpenMenuId(null);
+    setView('detail');
+  }
 
   return (
-    <div className="screen">
-      <div className="journal-hero">
-        <div className="journal-top">
-          <Brand />
-          <button className="round-dark-button" type="button" aria-label="Settings">
-            <Settings size={18} />
+    <div className="screen journal-screen">
+      <div className="journal-top">
+        <div className="brand-script">Swingo</div>
+        <div className="settings-wrap">
+          <button className="icon-btn" type="button" onClick={() => setSettingsOpen(!settingsOpen)} aria-label="Settings">
+            <Settings size={20} />
           </button>
+          {settingsOpen && (
+            <div className="settings-menu">
+              <button type="button" onClick={() => { setEntries(seedEntries()); setSettingsOpen(false); }}>
+                Load sample story
+              </button>
+              <button type="button" className="danger" onClick={() => { setEntries([]); setSettingsOpen(false); }}>
+                Clear my dance story
+              </button>
+            </div>
+          )}
         </div>
-        <div className="stat-row">
-          <StatPill value={loggedMoves} label="Moves collected" />
-          <StatPill value={entriesByDate.length} label="Journal entries" />
-        </div>
-        <h1>
-          Your dance <span>story</span> is growing.
-        </h1>
-        <button className="primary-cta gold" type="button" onClick={beginCheckin}>
-          <span>Check in today's dance</span>
-          <Plus size={22} />
-        </button>
       </div>
 
-      <section className="feed-section" aria-label="Recent entries">
-        <div className="section-label">Recent entries</div>
-        <div className="entry-list">
-          {entriesByDate.slice(0, 5).map((entry) => (
+      <div className="stat-pills">
+        <StatPill tone="gold" value={bank.length} label="Moves collected" />
+        <StatPill tone="coral" value={entries.length} label="2026 entries" />
+      </div>
+
+      <h1 className="hero-title">
+        Your dance <em>story</em> {hasEntries ? 'is growing.' : 'starts here.'}
+      </h1>
+
+      <button className="gold-cta" type="button" onClick={() => startCheckin()}>
+        Check in today's dance
+        <span>+</span>
+      </button>
+
+      {hasEntries ? (
+        <section className="recent-section">
+          <h2>Recent entries</h2>
+          {entriesSorted.map((entry) => (
             <JournalCard
               key={entry.id}
               entry={entry}
-              onOpen={() => {
-                setSelectedMove(entry.move);
-                navigate('Detail');
+              openMenuId={openMenuId}
+              setOpenMenuId={setOpenMenuId}
+              onOpen={() => openDetail(entry)}
+              onDelete={() => {
+                setEntries((current) => current.filter((item) => item.id !== entry.id));
+                setOpenMenuId(null);
               }}
             />
           ))}
+        </section>
+      ) : (
+        <div className="empty-state">
+          <Sticker family="lindy" moveName="Swingout" />
+          <h2>Every move you learn becomes part of your story.</h2>
+          <p>Check in the first move you learned.</p>
         </div>
-      </section>
-      <BottomNav active="Journal" navigate={navigate} />
+      )}
     </div>
   );
 }
 
-function StatPill({ value, label }) {
+function StatPill({ tone, value, label }) {
   return (
-    <div className="stat-pill">
-      <span>{value}</span>
-      <small>{label}</small>
+    <div className="stat-pill" data-tone={tone}>
+      <span />
+      <b>{value}</b>
+      {label}
     </div>
   );
 }
 
-function JournalCard({ entry, onOpen }) {
-  const meta = FAMILY_META[entry.family];
+function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
+  const family = FAMILIES[entry.family];
+  const status = STATUSES[entry.status];
+  const mood = entry.mood ? MOODS[entry.mood] : null;
+  const menuOpen = openMenuId === entry.id;
 
   return (
-    <button className={`journal-card ${meta.key}`} type="button" onClick={onOpen}>
-      <div className="card-menu" aria-hidden="true">
-        <Menu size={15} />
+    <article className="journal-card" style={{ '--move-color': family.color }}>
+      <div className="card-glow" />
+      <div className="card-content">
+        <div className="card-head">
+          <p>
+            {fmt(entry.date).full}
+            <br />
+            <span>{entry.time}</span>
+          </p>
+          <button type="button" onClick={() => setOpenMenuId(menuOpen ? null : entry.id)} aria-label="Entry menu">
+            ⋯
+          </button>
+        </div>
+        <p className="statement">{status.statement}</p>
+        <button type="button" className="card-title" onClick={onOpen}>
+          {entry.moveName}
+        </button>
+        <p className="card-meta">
+          {family.label} · {status.short}
+        </p>
+        {mood && (
+          <span className="mood-chip">
+            <i style={{ background: mood.color }} />
+            {mood.label}
+          </span>
+        )}
+        {entry.note && <p className="note-preview">"{entry.note}"</p>}
       </div>
-      <small>
-        {formatDate(entry.date)}
-        <br />
-        {formatTime(entry.date)}
-      </small>
-      <h2>
-        {entry.status.includes('Practiced')
-          ? 'I practiced'
-          : entry.status.includes('Used')
-            ? 'I used in social'
-            : 'I learned'}
-        <span>{entry.move}</span>
-      </h2>
-      <p>
-        {entry.family} · {statusShort(entry.status)}
-      </p>
-      <span className="mood-line">
-        <MoodGlyph mood={entry.mood} size="tiny" />
-        {entry.mood}
-      </span>
-      <Sticker family={entry.family} mood={entry.mood} />
-    </button>
+      <button type="button" className="card-sticker" onClick={onOpen} aria-label={`Open ${entry.moveName}`}>
+        <Sticker family={entry.family} moveName={entry.moveName} />
+      </button>
+      {menuOpen && (
+        <div className="entry-menu">
+          <button type="button" onClick={onOpen}>View move</button>
+          <button type="button" className="danger" onClick={onDelete}>Delete entry</button>
+        </div>
+      )}
+    </article>
   );
 }
 
-function CheckInScreen(props) {
-  const { checkin } = props;
-  if (checkin.step === 'family') return <FamilyStep {...props} />;
-  if (checkin.step === 'move') return <MoveStep {...props} />;
-  if (checkin.step === 'status') return <StatusStep {...props} />;
-  if (checkin.step === 'mood') return <MoodStep {...props} />;
+function CheckinScreen(props) {
+  if (props.step === 0) return <FamilyStep {...props} />;
+  if (props.step === 1) return <MoveStep {...props} />;
+  if (props.step === 2) return <StatusStep {...props} />;
+  if (props.step === 3) return <MoodStep {...props} />;
   return <SuccessStep {...props} />;
 }
 
-function Progress({ step }) {
-  const width = { family: '24%', move: '48%', status: '68%', mood: '82%', success: '100%' }[step];
+function StepHeader({ title, color = '#E7B44C', progress, onBack }) {
   return (
-    <div className="progress-track" aria-hidden="true">
-      <span style={{ width }} />
-    </div>
-  );
-}
-
-function FamilyStep({ checkin, setCheckin, navigate }) {
-  return (
-    <div className="screen check-screen">
-      <ScreenHeader
-        eyebrow="Check In"
-        onBack={() => navigate('Journal')}
-        action={<span className="header-spacer" />}
-      />
-      <Progress step={checkin.step} />
-      <div className="prompt-row">
-        <h1>What did you learn today?</h1>
-        <DanceFigure family="Lindy Hop" />
-      </div>
-      <div className="family-stack">
-        {Object.entries(FAMILY_META).map(([family, meta]) => (
-          <button
-            className={`family-tile ${meta.key}`}
-            type="button"
-            key={family}
-            onClick={() => setCheckin((current) => ({ ...current, family, step: 'move' }))}
-          >
-            <span>{family}</span>
-            <DanceFigure family={family} compact />
-          </button>
-        ))}
-      </div>
-      <button className="text-link" type="button" onClick={() => setCheckin((c) => ({ ...c, family: 'Solo Jazz', step: 'move' }))}>
-        Not sure? Browse all moves <ChevronRight size={16} />
-      </button>
-      <BottomNav active="Check In" navigate={navigate} />
-    </div>
-  );
-}
-
-function MoveStep({ checkin, setCheckin, navigate, moveBank, addCustomMove }) {
-  const [moveQuery, setMoveQuery] = useState('');
-  const [customName, setCustomName] = useState('');
-  const deferredQuery = useDeferredValue(moveQuery);
-  const family = checkin.family || 'Solo Jazz';
-  const meta = FAMILY_META[family];
-  const moves = useMemo(() => {
-    const needle = deferredQuery.trim().toLowerCase();
-    return moveBank
-      .filter((item) => item.family === family)
-      .filter((item) => (needle ? item.move.toLowerCase().includes(needle) : true))
-      .slice(0, 18);
-  }, [deferredQuery, family, moveBank]);
-
-  return (
-    <div className="screen check-screen">
-      <ScreenHeader
-        eyebrow={family}
-        onBack={() => setCheckin((current) => ({ ...current, step: 'family' }))}
-        action={<span className="header-spacer" />}
-      />
-      <Progress step={checkin.step} />
-      <h1 className="step-title">Which move did you learn or practice?</h1>
-      <SearchBox value={moveQuery} onChange={setMoveQuery} placeholder="Search a move..." />
-      <div className="move-grid" style={{ '--family-color': meta.color }}>
-        {moves.map((item) => (
-          <button
-            type="button"
-            className={`move-bubble ${item.move === 'Shorty George' ? 'selected' : ''}`}
-            key={`${item.family}-${item.move}`}
-            onClick={() => setCheckin((current) => ({ ...current, move: item.move, step: 'status' }))}
-          >
-            {item.move}
-          </button>
-        ))}
-      </div>
-      <form
-        className="custom-move"
-        onSubmit={(event) => {
-          event.preventDefault();
-          addCustomMove(family, customName);
-          setCustomName('');
-        }}
-      >
-        <input
-          value={customName}
-          onChange={(event) => setCustomName(event.target.value)}
-          placeholder="Can't find it? Add a custom move"
-          aria-label="Custom move name"
-        />
-        <button type="submit" aria-label="Add custom move">
-          <Pencil size={16} />
+    <>
+      <div className="step-header">
+        <button type="button" onClick={onBack} aria-label="Back">
+          <ChevronLeft size={19} />
         </button>
-      </form>
-      <BottomNav active="Check In" navigate={navigate} />
-    </div>
+        <span style={{ color }}>{title}</span>
+        <i />
+      </div>
+      <div className="progress-track">
+        <span style={{ width: progress, background: color }} />
+      </div>
+    </>
   );
 }
 
-function StatusStep({ checkin, setCheckin, navigate, moveBank }) {
-  const family = checkin.family || 'Solo Jazz';
-  const meta = FAMILY_META[family];
-  const move = checkin.move || 'Shorty George';
-  const prior = moveBank.find((item) => item.family === family && item.move === move);
-  const suggested = prior?.logs.length ? 'Practiced' : 'Learned for the first time';
+function FamilyStep({ setCheckin, setStep, goBack }) {
+  const options = [
+    ['lindy', 'Warm & swinging partner work', '6-count basic'],
+    ['solo', 'Playful individual rhythm', 'Shorty George'],
+    ['charleston', 'Kicks & jazz-era energy', 'Kick through'],
+  ];
 
   return (
     <div className="screen check-screen">
-      <ScreenHeader
-        onBack={() => setCheckin((current) => ({ ...current, step: 'move' }))}
-        action={<DanceFigure family={family} compact />}
-      />
-      <Progress step={checkin.step} />
-      <h1 className="status-title">
-        What happened with <span style={{ color: meta.color }}>{move}</span> today?
-      </h1>
-      {prior?.logs.length ? (
-        <p className="helper-copy">You first learned {move} on {formatDate(prior.firstLearned, 'short')}.</p>
-      ) : null}
-      <div className="status-stack">
-        {STATUS_OPTIONS.map((option) => {
-          const Icon = option.icon;
-          const selected = (checkin.status || suggested) === option.label;
+      <StepHeader title="Check In" progress="22%" onBack={goBack} />
+      <h1 className="step-title">What did you learn today?</h1>
+      <div className="family-list">
+        {options.map(([familyKey, subtitle, moveName]) => {
+          const family = FAMILIES[familyKey];
           return (
             <button
-              className={`status-option ${selected ? 'selected' : ''}`}
               type="button"
-              key={option.label}
-              onClick={() =>
-                setCheckin((current) => ({ ...current, status: option.label, step: 'mood' }))
-              }
+              className={`family-card ${familyKey}`}
+              key={familyKey}
+              onClick={() => {
+                setCheckin((current) => ({ ...current, family: familyKey, moveName: null }));
+                setStep(1);
+              }}
             >
-              <Icon size={25} />
-              <span>{option.label}</span>
-              {selected ? <Check size={18} /> : null}
+              <strong>{family.label}</strong>
+              <span>{subtitle}</span>
+              <i>
+                <Sticker family={familyKey} moveName={moveName} />
+              </i>
             </button>
           );
         })}
       </div>
       <button
-        className="primary-cta mint bottom-action"
         type="button"
-        onClick={() =>
-          setCheckin((current) => ({ ...current, status: current.status || suggested, step: 'mood' }))
-        }
+        className="subtle-link"
+        onClick={() => {
+          setCheckin((current) => ({ ...current, family: null, moveName: null }));
+          setStep(1);
+        }}
       >
-        Next
+        Not sure? Browse all moves →
       </button>
-      <BottomNav active="Check In" navigate={navigate} />
     </div>
   );
 }
 
-function MoodStep({ checkin, setCheckin, saveEntry, navigate }) {
+function MoveStep({
+  checkin,
+  setCheckin,
+  setStep,
+  goBack,
+  moveSearch,
+  setMoveSearch,
+  customMoves,
+  setCustomMoves,
+  addingCustom,
+  setAddingCustom,
+  customName,
+  setCustomName,
+  selectMove,
+}) {
+  const familyColor = checkin.family ? FAMILIES[checkin.family].color : '#E7B44C';
+  const pool = useMemo(() => {
+    const base = checkin.family
+      ? TAXONOMY[checkin.family].map((name) => ({ name, family: checkin.family }))
+      : Object.entries(TAXONOMY).flatMap(([family, moves]) => moves.map((name) => ({ name, family })));
+    const custom = customMoves
+      .filter((move) => !checkin.family || move.family === checkin.family)
+      .map((move) => ({ name: move.name, family: move.family }));
+    const needle = moveSearch.trim().toLowerCase();
+    return [...base, ...custom].filter((move) => (needle ? move.name.toLowerCase().includes(needle) : true));
+  }, [checkin.family, customMoves, moveSearch]);
+
+  function addCustom() {
+    const name = customName.trim();
+    if (!name) return;
+    const family = checkin.family || 'lindy';
+    setCustomMoves((current) => [...current, { name, family }]);
+    setCustomName('');
+    setAddingCustom(false);
+    selectMove(name, family);
+  }
+
   return (
-    <div className="screen check-screen mood-screen">
-      <ScreenHeader
-        eyebrow="Almost there"
-        onBack={() => setCheckin((current) => ({ ...current, step: 'status' }))}
-        action={<span className="header-spacer" />}
-      />
-      <Progress step={checkin.step} />
-      <h1 className="step-title compact">How did this learning feel?</h1>
-      <div className="mood-grid">
-        {MOODS.map((mood) => (
-          <button
-            className={`mood-option ${checkin.mood === mood.label ? 'selected' : ''}`}
-            type="button"
-            key={mood.label}
-            onClick={() => setCheckin((current) => ({ ...current, mood: mood.label }))}
-          >
-            <MoodGlyph mood={mood.label} />
-            <span>{mood.label}</span>
-          </button>
-        ))}
-      </div>
-      <label className="field-label" htmlFor="note">
-        What do you want to remember?
+    <div className="screen check-screen">
+      <StepHeader title={checkin.family ? FAMILIES[checkin.family].label : 'All moves'} color={familyColor} progress="46%" onBack={goBack} />
+      <h1 className="move-title">Which move did you learn or practice?</h1>
+      <label className="search-field">
+        <input value={moveSearch} onChange={(event) => setMoveSearch(event.target.value)} placeholder="Search a move…" />
+        <Search size={17} />
       </label>
-      <textarea
-        id="note"
-        value={checkin.note}
-        onChange={(event) => setCheckin((current) => ({ ...current, note: event.target.value }))}
-        placeholder="Keep knees soft. Don't rush the rhythm."
-      />
-      <div className="optional-fields">
-        {[
-          ['event', 'Class or event (optional)', CalendarDays],
-          ['teacher', 'Teacher (optional)', Users],
-          ['location', 'Location (optional)', Footprints],
-        ].map(([key, label, Icon]) => (
-          <label className="mini-field" key={key}>
-            <Icon size={17} />
-            <span>{label}</span>
-            <input
-              value={checkin[key]}
-              onChange={(event) => setCheckin((current) => ({ ...current, [key]: event.target.value }))}
-            />
+      <div className="move-tile-grid">
+        {pool.map((move) => {
+          const selected = move.name === checkin.moveName && move.family === checkin.family;
+          return (
             <button
               type="button"
-              aria-label={`Clear ${label}`}
-              onClick={() => setCheckin((current) => ({ ...current, [key]: '' }))}
+              className={selected ? 'selected' : ''}
+              key={`${move.family}-${move.name}`}
+              style={{ '--family-color': FAMILIES[move.family].color }}
+              onClick={() => selectMove(move.name, move.family)}
             >
-              <X size={14} />
+              {move.name}
             </button>
-          </label>
-        ))}
+          );
+        })}
       </div>
-      <button
-        className="primary-cta mint save-button mood-save-button"
-        type="button"
-        onClick={() =>
-          saveEntry({
-            ...checkin,
-            status: checkin.status || 'Learned for the first time',
-            note:
-              checkin.note ||
-              'Keep knees soft and stay playful with the rhythm. Need to work on the transition at the end.',
-          })
-        }
-      >
-        Save to my dance story
-      </button>
-      <BottomNav active="Check In" navigate={navigate} />
+      {addingCustom ? (
+        <div className="custom-row">
+          <input value={customName} onChange={(event) => setCustomName(event.target.value)} placeholder="Name your move…" />
+          <button type="button" onClick={addCustom}>Add</button>
+        </div>
+      ) : (
+        <button type="button" className="subtle-link" onClick={() => setAddingCustom(true)}>
+          Can't find it? Add a custom move ✎
+        </button>
+      )}
     </div>
   );
 }
 
-function SuccessStep({ checkin, setCheckin, navigate }) {
-  const entry = checkin.savedEntry;
-  const family = entry?.family ?? 'Solo Jazz';
-  const move = entry?.move ?? 'Shorty George';
+function StatusStep({ checkin, setCheckin, setStep, entries, goBack }) {
+  const color = FAMILIES[checkin.family].color;
+  const priorList = entries.filter((entry) => entry.family === checkin.family && entry.moveName === checkin.moveName);
+  const priorFirst = priorList.length ? fmt(priorList.map((entry) => entry.date).toSorted()[0]).medium : '';
+
   return (
-    <div className="screen success-screen">
-      <div className="spotlight" />
-      <div className="confetti" aria-hidden="true">
-        {Array.from({ length: 22 }, (_, index) => (
-          <i key={index} />
-        ))}
+    <div className="screen check-screen">
+      <StepHeader title={checkin.moveName} color={color} progress="68%" onBack={goBack} />
+      <h1 className="status-title">
+        What happened with <span style={{ color }}>{checkin.moveName}</span> today?
+      </h1>
+      {priorList.length > 0 && <p className="prior-note">✨ You first learned {checkin.moveName} on {priorFirst}.</p>}
+      <div className="status-list">
+        {STATUS_ORDER.map((key) => {
+          const selected = checkin.status === key;
+          return (
+            <button
+              type="button"
+              className={selected ? 'selected' : ''}
+              key={key}
+              onClick={() => setCheckin((current) => ({ ...current, status: key }))}
+            >
+              <Glyph type={key} />
+              <span>{STATUSES[key].label}</span>
+              {selected && <Check size={14} />}
+            </button>
+          );
+        })}
       </div>
+      <button className="green-cta" type="button" onClick={() => setStep(3)}>Next</button>
+    </div>
+  );
+}
+
+function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
+  const dateRef = useRef(null);
+
+  return (
+    <div className="screen check-screen mood-screen">
+      <StepHeader title="Almost there" progress="88%" onBack={goBack} />
+      <h1 className="move-title">How did this learning feel?</h1>
+      <div className="mood-grid">
+        {MOOD_ORDER.map((key) => {
+          const mood = MOODS[key];
+          const selected = checkin.mood === key;
+          return (
+            <button
+              type="button"
+              className={selected ? 'selected' : ''}
+              style={{ '--mood-color': mood.color }}
+              key={key}
+              onClick={() => setCheckin((current) => ({ ...current, mood: selected ? null : key }))}
+            >
+              <Glyph type={`mood-${key}`} />
+              {mood.label}
+            </button>
+          );
+        })}
+      </div>
+      <label className="field-label">What do you want to remember?</label>
+      <textarea
+        value={checkin.note}
+        onChange={(event) => setCheckin((current) => ({ ...current, note: event.target.value }))}
+        placeholder="Keep knees soft. Don't rush the rhythm…"
+        rows={3}
+      />
+      <div className="optional-fields">
+        <label>
+          <CalendarDays size={17} onClick={() => dateRef.current?.showPicker?.()} />
+          <input
+            ref={dateRef}
+            type="date"
+            value={checkin.date}
+            onChange={(event) => setCheckin((current) => ({ ...current, date: event.target.value }))}
+          />
+        </label>
+        <OptionalField
+          icon={<ListChecks size={17} />}
+          value={checkin.cls}
+          placeholder="Class or event (optional)"
+          onChange={(value) => setCheckin((current) => ({ ...current, cls: value }))}
+        />
+        <OptionalField
+          icon={<UserRound size={17} />}
+          value={checkin.teacher}
+          placeholder="Teacher (optional)"
+          onChange={(value) => setCheckin((current) => ({ ...current, teacher: value }))}
+        />
+        <OptionalField
+          icon={<MapPin size={17} />}
+          value={checkin.location}
+          placeholder="Location (optional)"
+          onChange={(value) => setCheckin((current) => ({ ...current, location: value }))}
+        />
+      </div>
+      <button className="green-cta save-cta" type="button" onClick={saveCheckin}>Save to my dance story</button>
+    </div>
+  );
+}
+
+function OptionalField({ icon, value, placeholder, onChange }) {
+  return (
+    <label>
+      {icon}
+      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      {value && (
+        <button type="button" onClick={() => onChange('')} aria-label={`Clear ${placeholder}`}>
+          <X size={14} />
+        </button>
+      )}
+    </label>
+  );
+}
+
+function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin }) {
+  const family = FAMILIES[checkin.family] || FAMILIES.lindy;
+  const status = STATUSES[checkin.status || 'first_learned'];
+  const mood = checkin.mood ? MOODS[checkin.mood] : null;
+
+  return (
+    <div className="screen success-screen" style={{ '--conf-color': family.color }}>
+      <Confetti />
       <h1>Nice one!</h1>
       <h2>
-        <span>{move}</span> added to your 2026 dance story.
+        <span style={{ color: family.color }}>{checkin.moveName}</span> added to your 2026 dance story.
       </h2>
-      <Sticker family={family} mood={entry?.mood ?? 'Proud'} hero />
-      <div className="save-summary">
-        <p>
-          {family} · {entry?.status ?? 'Learned for the first time'}
-        </p>
-        <span>
-          <MoodGlyph mood={entry?.mood ?? 'Proud'} size="tiny" /> Mood: {entry?.mood ?? 'Proud'}
-        </span>
+      <div className="success-sticker">
+        <Sticker family={checkin.family} moveName={checkin.moveName} />
+        <span>✦</span>
       </div>
+      <p className="success-sub">
+        {family.label} · {status.label}
+        {mood && (
+          <>
+            <i style={{ background: mood.color }} /> {mood.label}
+          </>
+        )}
+      </p>
+      <p className="success-count"><b>{bank.length}</b> moves collected this year</p>
       <div className="success-actions">
-        <button className="primary-cta gold" type="button" onClick={() => navigate('Journal')}>
+        <button type="button" className="gold-cta centered" onClick={() => { setView('journal'); setCheckin(freshCheckin()); }}>
           View in journal
         </button>
-        <button className="outline-button" type="button" onClick={() => setCheckin(createFreshCheckin())}>
+        <button type="button" className="secondary-btn" onClick={() => startCheckin()}>
           Add another move
         </button>
-        <button className="outline-button" type="button" onClick={() => navigate('Moves')}>
+        <button type="button" className="plain-btn" onClick={() => { setView('moves'); setCheckin(freshCheckin()); }}>
           Go to Move Bank
         </button>
       </div>
@@ -819,276 +843,243 @@ function SuccessStep({ checkin, setCheckin, navigate }) {
   );
 }
 
-function MoveBankScreen({
-  moveBank,
-  entries,
-  navigate,
-  setSelectedMove,
-  query,
-  setQuery,
-  filter,
-  setFilter,
-}) {
-  const deferredQuery = useDeferredValue(query);
-  const loggedMoves = useMemo(() => moveBank.filter((item) => item.logs.length > 0), [moveBank]);
+function MoveBankScreen({ bank, bankSearch, setBankSearch, bankFilter, setBankFilter, setView, setDetailKey, setDetailFrom }) {
   const filtered = useMemo(() => {
-    const needle = deferredQuery.trim().toLowerCase();
-    return moveBank
-      .filter((item) => (filter === 'All' ? item.logs.length > 0 : item.family === filter && item.logs.length > 0))
-      .filter((item) => (needle ? item.move.toLowerCase().includes(needle) : true))
-      .toSorted((a, b) => b.logs.length - a.logs.length || a.move.localeCompare(b.move));
-  }, [deferredQuery, filter, moveBank]);
+    let rows = [...bank];
+    if (['lindy', 'solo', 'charleston'].includes(bankFilter)) rows = rows.filter((row) => row.family === bankFilter);
+    if (bankFilter === 'new') rows = rows.filter((row) => row.logs === 1);
+    if (bankFilter === 'revisited') rows = rows.filter((row) => row.logs > 1);
+    if (bankFilter === 'social') rows = rows.filter((row) => row.hasSocial);
+    const needle = bankSearch.trim().toLowerCase();
+    if (needle) rows = rows.filter((row) => row.moveName.toLowerCase().includes(needle));
+    return rows.toSorted((a, b) => b.latestSk.localeCompare(a.latestSk));
+  }, [bank, bankFilter, bankSearch]);
+
+  function open(row) {
+    setDetailKey(row.key);
+    setDetailFrom('moves');
+    setView('detail');
+  }
 
   return (
-    <div className="screen move-bank-screen">
-      <ScreenHeader
-        title="Move Bank"
-        eyebrow={`${loggedMoves.length} moves collected in 2026`}
-        action={
-          <button className="round-dark-button" type="button" aria-label="Filter moves">
-            <Filter size={17} />
-          </button>
-        }
-      />
-      <SearchBox value={query} onChange={setQuery} placeholder="Search moves..." />
+    <div className="screen bank-screen">
+      <div className="bank-header">
+        <div>
+          <h1>Move Bank</h1>
+          <p>{bank.length} moves collected in 2026</p>
+        </div>
+        <button type="button" aria-label="Filter">
+          <Filter size={18} />
+        </button>
+      </div>
+      <label className="search-field">
+        <input value={bankSearch} onChange={(event) => setBankSearch(event.target.value)} placeholder="Search moves…" />
+        <Search size={17} />
+      </label>
       <div className="filter-row">
-        {['All', 'Lindy Hop', 'Solo Jazz', 'Charleston'].map((item) => (
-          <button
-            type="button"
-            className={filter === item ? 'selected' : ''}
-            key={item}
-            onClick={() => setFilter(item)}
-          >
-            {item}
+        {[
+          ['all', 'All'],
+          ['lindy', 'Lindy Hop'],
+          ['solo', 'Solo Jazz'],
+          ['charleston', 'Charleston'],
+          ['new', 'New'],
+          ['revisited', 'Revisited'],
+          ['social', 'Used in social'],
+        ].map(([key, label]) => (
+          <button type="button" className={bankFilter === key ? 'selected' : ''} key={key} onClick={() => setBankFilter(key)}>
+            {label}
           </button>
         ))}
       </div>
-      <div className="bank-section-title">
-        <span>Recently added</span>
-        <button type="button">See all</button>
-      </div>
-      <div className="move-list">
-        {filtered.slice(0, 8).map((item) => (
-          <MoveRow
-            key={`${item.family}-${item.move}`}
-            item={item}
-            onClick={() => {
-              setSelectedMove(item.move);
-              navigate('Detail');
-            }}
-          />
-        ))}
-      </div>
-      <div className="bank-section-title all">
-        <span>All moves</span>
-        <small>{entries.length} total logs</small>
-      </div>
-      <BottomNav active="Moves" navigate={navigate} />
+      {bank.length > 0 && (
+        <div className="family-bubbles">
+          {Object.entries(FAMILIES).map(([key, family]) => (
+            <div key={key}>
+              <strong style={{ color: family.color }}>{bank.filter((row) => row.family === key).length}</strong>
+              <span>{family.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <h2 className="list-label">{filtered.length === bank.length ? 'All moves' : `${filtered.length} result${filtered.length === 1 ? '' : 's'}`}</h2>
+      {filtered.length ? filtered.map((row) => <MoveBankCard key={row.key} row={row} onOpen={() => open(row)} />) : <p className="empty-copy">No moves match that search.</p>}
     </div>
   );
 }
 
-function MoveRow({ item, onClick }) {
-  const meta = FAMILY_META[item.family];
-  const recent = item.logs[0];
+function MoveBankCard({ row, onOpen }) {
+  const family = FAMILIES[row.family];
+  const mood = row.mood ? MOODS[row.mood] : null;
   return (
-    <button className="move-row" type="button" onClick={onClick}>
-      <Sticker family={item.family} mood={item.commonMood} small />
+    <button type="button" className="bank-card" onClick={onOpen}>
+      <Sticker family={row.family} moveName={row.moveName} />
       <span>
-        <strong>{item.move}</strong>
-        <small>{item.family}</small>
+        <strong>{row.moveName}</strong>
+        <small>{family.label} · First learned {fmt(row.firstDate).md}</small>
       </span>
-      <span className="row-stat">
-        <strong>{item.logs.length} logs</strong>
-        <small>{recent ? formatDate(recent.date, 'short') : 'No logs'}</small>
-      </span>
-      <i style={{ background: meta.color }} />
+      <i style={{ color: mood?.color || family.color }}>
+        <strong>{row.logs} {row.logs === 1 ? 'log' : 'logs'}</strong>
+        <small>{STATUSES[row.latestStatus].short}</small>
+      </i>
     </button>
   );
 }
 
-function MoveDetailScreen({ selectedMoveData, navigate, beginCheckin }) {
-  const item = selectedMoveData;
-  const meta = FAMILY_META[item.family];
-  const logs = item.logs;
+function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack }) {
+  const detail = bank.find((row) => row.key === detailKey) || bank[0];
+  if (!detail) return null;
+  const family = FAMILIES[detail.family];
+  const mood = detail.mood ? MOODS[detail.mood] : null;
+
   return (
     <div className="screen detail-screen">
-      <ScreenHeader
-        onBack={() => navigate('Moves')}
-        action={
-          <button className="round-dark-button" type="button" aria-label="Share move">
-            <Share2 size={17} />
-          </button>
-        }
-      />
-      <div className="detail-heading">
-        <h1>{item.move}</h1>
-        <p style={{ color: meta.color }}>{item.family}</p>
+      <button type="button" className="back-btn" onClick={goBack} aria-label="Back">
+        <ChevronLeft size={19} />
+      </button>
+      <h1>{detail.moveName}</h1>
+      <p style={{ color: family.color }}>{family.label}</p>
+      <div className="detail-sticker" style={{ '--detail-color': family.color }}>
+        <Sticker family={detail.family} moveName={detail.moveName} />
+        <span>✦</span>
       </div>
-      <div className="detail-hero">
-        <Sticker family={item.family} mood={item.commonMood} hero />
-        <Sparkles size={18} />
+      <div className="summary-panel">
+        <SummaryCell label="First learned" value={fmt(detail.firstDate).medium} />
+        <SummaryCell label="Total logs" value={`${detail.logs} ${detail.logs === 1 ? 'time' : 'times'}`} />
+        <SummaryCell label="Latest" value={STATUSES[detail.latestStatus].short} />
+        <SummaryCell label="Top mood" value={mood?.label || '—'} color={mood?.color} />
       </div>
-      <div className="summary-strip">
-        <SummaryItem label="First learned" value={item.firstLearned ? formatDate(item.firstLearned, 'short') : 'Not yet'} />
-        <SummaryItem label="Total logs" value={`${logs.length} times`} />
-        <SummaryItem label="Latest status" value={statusShort(item.latestStatus)} />
-        <SummaryItem label="Most common mood" value={item.commonMood} />
+      <h2 className="list-label">History</h2>
+      <div className="timeline">
+        {detail.list.map((entry) => (
+          <article key={entry.id} className="timeline-row" style={{ '--row-color': FAMILIES[entry.family].color }}>
+            <i />
+            <div>
+              <small>{fmt(entry.date).medium} · {entry.time}</small>
+              <h3>{STATUSES[entry.status].label}</h3>
+              {entry.note && <p>"{entry.note}"</p>}
+            </div>
+          </article>
+        ))}
       </div>
-      <section className="history">
-        <h2>History</h2>
-        <div className="timeline">
-          {logs.map((log) => (
-            <article className="timeline-card" key={log.id}>
-              <span className="timeline-dot" />
-              <small>
-                {formatDate(log.date)} · {formatTime(log.date)}
-              </small>
-              <h3>{log.status}</h3>
-              <p>{log.note}</p>
-              <Sticker family={log.family} mood={log.mood} small />
-            </article>
-          ))}
-        </div>
-      </section>
-      <button className="primary-cta mint save-button" type="button" onClick={beginCheckin}>
+      <button
+        className="green-cta"
+        type="button"
+        onClick={() => {
+          setDetailKey(detail.key);
+          setDetailFrom(detailFrom);
+          startCheckin({ ...freshCheckin(), family: detail.family, moveName: detail.moveName, status: 'learned_again' }, 2);
+        }}
+      >
         Add another log
       </button>
-      <BottomNav active="Moves" navigate={navigate} />
     </div>
   );
 }
 
-function SummaryItem({ label, value }) {
+function SummaryCell({ label, value, color }) {
   return (
-    <span>
+    <div>
       <small>{label}</small>
-      <strong>{value}</strong>
-    </span>
+      <strong style={{ color }}>{value}</strong>
+    </div>
   );
 }
 
-function WrappedScreen({ entries, moveBank, navigate, beginCheckin }) {
-  const stats = useMemo(() => {
-    const familyCounts = entries.reduce((counts, entry) => {
-      counts.set(entry.family, (counts.get(entry.family) ?? 0) + 1);
-      return counts;
-    }, new Map());
-    const topFamily = Array.from(familyCounts.entries()).toSorted((a, b) => b[1] - a[1])[0]?.[0] ?? 'Solo Jazz';
-    const logged = moveBank.filter((item) => item.logs.length > 0);
-    const mostRevisited = logged.toSorted((a, b) => b.logs.length - a.logs.length)[0]?.move ?? 'Shorty George';
-    const latest = entries.toSorted((a, b) => new Date(b.date) - new Date(a.date))[0]?.move ?? 'Shorty George';
-    return { topFamily, mostRevisited, latest, moves: logged.length };
-  }, [entries, moveBank]);
+function WrappedScreen({ entries, bank, startCheckin }) {
+  const wrapped = useMemo(() => {
+    if (!bank.length) return null;
+    const familyEntries = (family) => entries.filter((entry) => entry.family === family).length;
+    const topFamily = Object.keys(FAMILIES).toSorted((a, b) => familyEntries(b) - familyEntries(a))[0];
+    const revisited = [...bank].toSorted((a, b) => b.logs - a.logs)[0];
+    const moodTally = new Map();
+    entries.forEach((entry) => {
+      if (entry.mood) moodTally.set(entry.mood, (moodTally.get(entry.mood) || 0) + 1);
+    });
+    const topMood = Array.from(moodTally.entries()).toSorted((a, b) => b[1] - a[1])[0]?.[0];
+    const latest = entries.toSorted((a, b) => sortKey(b).localeCompare(sortKey(a)))[0];
+    return { topFamily, revisited, topMood, latest };
+  }, [bank, entries]);
 
   return (
     <div className="screen wrapped-screen">
-      <ScreenHeader title="Your 2026 Swingo Wrapped is building" />
-      <div className="wrapped-orbit">
-        <Sparkles size={22} />
-        <h2>{stats.moves}</h2>
-        <p>moves collected so far</p>
-      </div>
-      <div className="wrapped-grid">
-        <WrappedCard label="Dance entries" value={entries.length} tone="gold" />
-        <WrappedCard label="Top family" value={stats.topFamily} tone="mint" />
-        <WrappedCard label="Most revisited" value={stats.mostRevisited} tone="coral" />
-        <WrappedCard label="Latest move" value={stats.latest} tone="gold" />
-      </div>
-      <p className="wrapped-copy">
-        Every check-in gives your future dance report more rhythm: classes, moods, revisits, and
-        the tiny moments that would otherwise slip away.
-      </p>
-      <button className="primary-cta gold save-button" type="button" onClick={beginCheckin}>
-        Add today's dance
-      </button>
-      <BottomNav active="Wrapped" navigate={navigate} />
+      <p className="year-label">2026 · in progress</p>
+      <h1>Your 2026 Swingo <em>Wrapped</em> is building.</h1>
+      {wrapped ? (
+        <>
+          <div className="wrapped-hero">
+            <span>Moves collected</span>
+            <strong>{bank.length}</strong>
+            <Sticker family="lindy" moveName="6-count basic" />
+          </div>
+          <div className="wrapped-grid">
+            <WrappedCard label="Dance entries" value={entries.length} />
+            <WrappedCard label="Most logged" value={FAMILIES[wrapped.topFamily].label} color={FAMILIES[wrapped.topFamily].color} />
+            <WrappedCard label="Most revisited" value={wrapped.revisited.moveName} sub={`${wrapped.revisited.logs} logs`} />
+            <WrappedCard label="Top mood" value={MOODS[wrapped.topMood]?.label || '—'} color={MOODS[wrapped.topMood]?.color} />
+          </div>
+          <p className="wrapped-copy">
+            So far, you've collected <b>{bank.length} moves</b>. Your most logged family is <b style={{ color: FAMILIES[wrapped.topFamily].color }}>{FAMILIES[wrapped.topFamily].label}</b>. Your latest move is <b style={{ color: FAMILIES[wrapped.latest.family].color }}>{wrapped.latest.moveName}</b>, and your most common learning mood is <b style={{ color: MOODS[wrapped.topMood]?.color }}>{MOODS[wrapped.topMood]?.label || '—'}</b>.
+          </p>
+          <button className="gold-cta centered" type="button" onClick={() => startCheckin()}>
+            Keep building your dance story
+          </button>
+        </>
+      ) : (
+        <p className="empty-copy">Your Wrapped grows from every move you log. Check in your first move to begin.</p>
+      )}
     </div>
   );
 }
 
-function WrappedCard({ label, value, tone }) {
+function WrappedCard({ label, value, sub, color }) {
   return (
-    <article className={`wrapped-card ${tone}`}>
+    <article>
       <small>{label}</small>
-      <strong>{value}</strong>
+      <strong style={{ color }}>{value}</strong>
+      {sub && <span>{sub}</span>}
     </article>
   );
 }
 
-function SearchBox({ value, onChange, placeholder }) {
+function BottomNav({ view, detailFrom, startCheckin, setView }) {
+  const active = {
+    journal: view === 'journal',
+    checkin: view === 'checkin',
+    moves: view === 'moves' || (view === 'detail' && detailFrom === 'moves'),
+    wrapped: view === 'wrapped',
+  };
   return (
-    <label className="search-box">
-      <Search size={18} />
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-    </label>
-  );
-}
-
-function BottomNav({ active, navigate }) {
-  const items = [
-    ['Journal', List],
-    ['Check In', CirclePlus],
-    ['Moves', Share2],
-    ['Wrapped', WandSparkles],
-  ];
-  return (
-    <nav className="bottom-nav" aria-label="Primary">
-      {items.map(([label, Icon]) => (
-        <button
-          className={active === label ? 'active' : ''}
-          type="button"
-          key={label}
-          onClick={() => navigate(label)}
-        >
-          <Icon size={20} />
-          <span>{label}</span>
-        </button>
-      ))}
+    <nav className="bottom-nav" aria-label="Primary navigation">
+      <button type="button" className={active.journal ? 'active' : ''} onClick={() => setView('journal')}>
+        <ListChecks size={22} />Journal
+      </button>
+      <button type="button" className={active.checkin ? 'active' : ''} onClick={() => startCheckin()}>
+        <CirclePlus size={23} />Check In
+      </button>
+      <button type="button" className={active.moves ? 'active' : ''} onClick={() => setView('moves')}>
+        <Share2 size={22} />Moves
+      </button>
+      <button type="button" className={active.wrapped ? 'active' : ''} onClick={() => setView('wrapped')}>
+        <WandSparkles size={22} />Wrapped
+      </button>
     </nav>
   );
 }
 
-function DanceFigure({ family, compact = false }) {
-  const meta = FAMILY_META[family];
-  const people = family === 'Lindy Hop' ? 2 : 1;
+function Sticker({ family, moveName }) {
+  const src = iconSrc(family, moveName);
+  return src ? <img className="sticker-img" src={src} alt="" aria-hidden="true" /> : <span className="sticker-fallback" />;
+}
+
+function Glyph({ type }) {
+  return <span className={`status-glyph ${type}`} aria-hidden="true" />;
+}
+
+function Confetti() {
   return (
-    <div className={`dance-figure ${compact ? 'compact' : ''}`} style={{ '--figure-color': meta.color }}>
-      {Array.from({ length: people }, (_, index) => (
-        <span key={index} className={`person person-${index + 1}`}>
-          <i className="head" />
-          <i className="body" />
-          <i className="arm a" />
-          <i className="arm b" />
-          <i className="leg a" />
-          <i className="leg b" />
-        </span>
-      ))}
-      <Sparkles size={compact ? 12 : 16} />
+    <div className="confetti" aria-hidden="true">
+      {Array.from({ length: 11 }, (_, index) => <i key={index} />)}
     </div>
-  );
-}
-
-function Sticker({ family, mood, small = false, hero = false }) {
-  const meta = FAMILY_META[family] ?? FAMILY_META['Solo Jazz'];
-  const moodColor = MOODS.find((item) => item.label === mood)?.color ?? meta.color;
-  return (
-    <span
-      className={`sticker ${meta.key} ${small ? 'small' : ''} ${hero ? 'hero' : ''}`}
-      style={{ '--sticker-color': moodColor, '--sticker-bg': meta.color }}
-      aria-hidden="true"
-    >
-      <i />
-    </span>
-  );
-}
-
-function MoodGlyph({ mood, size = 'normal' }) {
-  const item = MOODS.find((option) => option.label === mood) ?? MOODS[0];
-  return (
-    <span className={`mood-glyph ${item.glyph} ${size}`} style={{ '--mood-color': item.color }} aria-hidden="true">
-      <i />
-    </span>
   );
 }
 

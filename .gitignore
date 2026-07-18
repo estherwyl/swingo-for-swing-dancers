@@ -2,5 +2,8 @@
 node_modules
 dist
 *.png
+!public/
+!public/assets/
+!public/assets/**/*.png
 .DS_Store
 npm-debug.log*

@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
-  viewport: { width: 430, height: 900 },
+  viewport: { width: 430, height: 740 },
   deviceScaleFactor: 1,
   isMobile: true,
   hasTouch: true,
@@ -16,8 +16,8 @@ await page.getByRole('button', { name: /Next/i }).click();
 await page.getByText('How did this learning feel?').waitFor();
 
 const before = await page.evaluate(() => {
-  const screen = document.querySelector('.mood-screen');
-  const save = document.querySelector('.mood-save-button');
+  const screen = document.querySelector('.app-scroll');
+  const save = document.querySelector('.save-cta');
   return {
     scrollTop: screen.scrollTop,
     scrollHeight: screen.scrollHeight,
@@ -27,7 +27,7 @@ const before = await page.evaluate(() => {
   };
 });
 
-await page.locator('.mood-screen').evaluate((element) => {
+await page.locator('.app-scroll').evaluate((element) => {
   element.scrollTo({ top: element.scrollHeight, behavior: 'instant' });
 });
 await page.waitForTimeout(120);
@@ -37,17 +37,17 @@ await page.screenshot({
 });
 
 const after = await page.evaluate(() => {
-  const screen = document.querySelector('.mood-screen');
-  const save = document.querySelector('.mood-save-button');
+  const screen = document.querySelector('.app-scroll');
+  const save = document.querySelector('.save-cta');
   const nav = document.querySelector('.bottom-nav');
   const saveRect = save.getBoundingClientRect();
-  const navRect = nav.getBoundingClientRect();
+  const navRect = nav?.getBoundingClientRect();
   return {
     scrollTop: screen.scrollTop,
     scrollHeight: screen.scrollHeight,
     clientHeight: screen.clientHeight,
     saveVisible: saveRect.top >= 0 && saveRect.bottom <= window.innerHeight,
-    saveAboveNav: saveRect.bottom <= navRect.top + 1,
+    saveAboveNav: navRect ? saveRect.bottom <= navRect.top + 1 : saveRect.bottom <= window.innerHeight,
     saveText: save.textContent.trim(),
   };
 });

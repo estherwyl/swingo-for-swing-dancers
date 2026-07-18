@@ -22,11 +22,13 @@ await page.getByRole('button', { name: /Check in today's dance/i }).click();
 await page.screenshot({ path: `${outDir}/swingo-mobile-checkin.png`, fullPage: true });
 
 await page.getByRole('button', { name: /Solo Jazz/i }).click();
-await page.getByPlaceholder('Search a move...').fill('Shorty');
+await page.getByPlaceholder('Search a move…').fill('Shorty');
 await page.screenshot({ path: `${outDir}/swingo-mobile-move-search.png`, fullPage: true });
 
 await page.getByRole('button', { name: /Shorty George/i }).click();
 await page.getByRole('button', { name: /Next/i }).click();
+await page.getByText('How did this learning feel?').waitFor();
+await page.screenshot({ path: `${outDir}/swingo-mobile-mood.png`, fullPage: true });
 await page.getByRole('button', { name: /Save to my dance story/i }).click();
 await page.screenshot({ path: `${outDir}/swingo-mobile-success.png`, fullPage: true });
 
@@ -49,6 +51,7 @@ console.log(
         'swingo-mobile-journal.png',
         'swingo-mobile-checkin.png',
         'swingo-mobile-move-search.png',
+        'swingo-mobile-mood.png',
         'swingo-mobile-success.png',
         'swingo-mobile-bank.png',
         'swingo-desktop.png',
