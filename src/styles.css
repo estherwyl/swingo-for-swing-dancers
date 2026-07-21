@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Yellowtail&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Playball&display=swap');
 
 :root {
   color-scheme: dark;
@@ -126,7 +126,7 @@ button {
 .brand-script {
   padding-top: 8px;
   color: var(--gold);
-  font-family: Yellowtail, cursive;
+  font-family: Playball, cursive;
   font-size: 42px;
   line-height: 0.9;
 }
