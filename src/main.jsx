@@ -49,6 +49,15 @@ const MOODS = {
 
 const MOOD_ORDER = ['proud', 'excited', 'flowing', 'curious', 'challenged', 'confused', 'frustrated', 'inspired'];
 
+function moodKeys(value) {
+  if (Array.isArray(value)) return value.filter((key) => MOODS[key]);
+  return value && MOODS[value] ? [value] : [];
+}
+
+function moodList(value) {
+  return moodKeys(value).map((key) => MOODS[key]);
+}
+
 const TAXONOMY = {
   lindy: [
     '6-count basic',
@@ -154,7 +163,7 @@ function freshCheckin() {
     family: null,
     moveName: null,
     status: null,
-    mood: null,
+    mood: [],
     note: '',
     date: todayStr(),
     cls: '',
@@ -229,7 +238,9 @@ function aggregateEntries(entries) {
     const firstDate = list.map((entry) => entry.date).toSorted()[0];
     const moodTally = new Map();
     sorted.forEach((entry) => {
-      if (entry.mood) moodTally.set(entry.mood, (moodTally.get(entry.mood) || 0) + 1);
+      moodKeys(entry.mood).forEach((mood) => {
+        moodTally.set(mood, (moodTally.get(mood) || 0) + 1);
+      });
     });
     const mood = Array.from(moodTally.entries()).toSorted((a, b) => b[1] - a[1])[0]?.[0] || null;
     return {
@@ -337,6 +348,7 @@ function App() {
       date: checkin.date || todayStr(),
       time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
       status: checkin.status || 'first_learned',
+      mood: moodKeys(checkin.mood),
       note: checkin.note.trim(),
     };
     setEntries((current) => [entry, ...current]);
@@ -497,7 +509,7 @@ function StatPill({ tone, value, label }) {
 function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
   const family = FAMILIES[entry.family];
   const status = STATUSES[entry.status];
-  const mood = entry.mood ? MOODS[entry.mood] : null;
+  const moods = moodList(entry.mood);
   const menuOpen = openMenuId === entry.id;
 
   return (
@@ -521,10 +533,10 @@ function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
         <p className="card-meta">
           {family.label} · {status.short}
         </p>
-        {mood && (
+        {moods.length > 0 && (
           <span className="mood-chip">
-            <span aria-hidden="true">{mood.emoji}</span>
-            {mood.label}
+            <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span>
+            {moods.map((mood) => mood.label).join(', ')}
           </span>
         )}
         {entry.note && <p className="note-preview">"{entry.note}"</p>}
@@ -733,14 +745,24 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
       <div className="mood-grid">
         {MOOD_ORDER.map((key) => {
           const mood = MOODS[key];
-          const selected = checkin.mood === key;
+          const selected = moodKeys(checkin.mood).includes(key);
           return (
             <button
               type="button"
               className={selected ? 'selected' : ''}
               style={{ '--mood-color': mood.color }}
               key={key}
-              onClick={() => setCheckin((current) => ({ ...current, mood: selected ? null : key }))}
+              onClick={() =>
+                setCheckin((current) => {
+                  const currentMoods = moodKeys(current.mood);
+                  return {
+                    ...current,
+                    mood: currentMoods.includes(key)
+                      ? currentMoods.filter((moodKey) => moodKey !== key)
+                      : [...currentMoods, key],
+                  };
+                })
+              }
             >
               <span aria-hidden="true">{mood.emoji}</span>
               {mood.label}
@@ -806,7 +828,7 @@ function OptionalField({ icon, value, placeholder, onChange }) {
 function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin }) {
   const family = FAMILIES[checkin.family] || FAMILIES.lindy;
   const status = STATUSES[checkin.status || 'first_learned'];
-  const mood = checkin.mood ? MOODS[checkin.mood] : null;
+  const moods = moodList(checkin.mood);
 
   return (
     <div className="screen success-screen" style={{ '--conf-color': family.color }}>
@@ -821,9 +843,9 @@ function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin }) {
       </div>
       <p className="success-sub">
         {family.label} · {status.label}
-        {mood && (
+        {moods.length > 0 && (
           <>
-            <span aria-hidden="true">{mood.emoji}</span> {mood.label}
+            <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span> {moods.map((mood) => mood.label).join(', ')}
           </>
         )}
       </p>
@@ -909,7 +931,7 @@ function MoveBankScreen({ bank, bankSearch, setBankSearch, bankFilter, setBankFi
 
 function MoveBankCard({ row, onOpen }) {
   const family = FAMILIES[row.family];
-  const mood = row.mood ? MOODS[row.mood] : null;
+  const mood = moodList(row.mood)[0];
   return (
     <button type="button" className="bank-card" onClick={onOpen}>
       <Sticker family={row.family} moveName={row.moveName} />
@@ -929,7 +951,7 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
   const detail = bank.find((row) => row.key === detailKey) || bank[0];
   if (!detail) return null;
   const family = FAMILIES[detail.family];
-  const mood = detail.mood ? MOODS[detail.mood] : null;
+  const mood = moodList(detail.mood)[0];
 
   return (
     <div className="screen detail-screen">
@@ -993,7 +1015,9 @@ function WrappedScreen({ entries, bank, startCheckin }) {
     const revisited = [...bank].toSorted((a, b) => b.logs - a.logs)[0];
     const moodTally = new Map();
     entries.forEach((entry) => {
-      if (entry.mood) moodTally.set(entry.mood, (moodTally.get(entry.mood) || 0) + 1);
+      moodKeys(entry.mood).forEach((mood) => {
+        moodTally.set(mood, (moodTally.get(mood) || 0) + 1);
+      });
     });
     const topMood = Array.from(moodTally.entries()).toSorted((a, b) => b[1] - a[1])[0]?.[0];
     const latest = entries.toSorted((a, b) => sortKey(b).localeCompare(sortKey(a)))[0];
