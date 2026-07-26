@@ -534,9 +534,8 @@ function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
           {family.label} · {status.short}
         </p>
         {moods.length > 0 && (
-          <span className="mood-chip">
+          <span className="mood-chip" aria-label={moods.map((mood) => mood.label).join(', ')}>
             <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span>
-            {moods.map((mood) => mood.label).join(', ')}
           </span>
         )}
         {entry.note && <p className="note-preview">"{entry.note}"</p>}
@@ -844,9 +843,9 @@ function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin }) {
       <p className="success-sub">
         {family.label} · {status.label}
         {moods.length > 0 && (
-          <>
-            <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span> {moods.map((mood) => mood.label).join(', ')}
-          </>
+          <span aria-label={moods.map((mood) => mood.label).join(', ')}>
+            <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span>
+          </span>
         )}
       </p>
       <p className="success-count"><b>{bank.length}</b> moves collected this year</p>
