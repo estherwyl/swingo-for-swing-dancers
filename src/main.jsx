@@ -21,7 +21,6 @@ import {
 import './styles.css';
 
 const STORAGE_KEY = 'swingo_v2';
-const INVITE_CODE = 'SWINGO';
 const COMPANION_ASSET_VERSION = '2026-08-07-white-tennis-shoes';
 const MAX_REFERENCES_PER_MOVE = 3;
 
@@ -572,16 +571,14 @@ function App() {
   );
 }
 
-function SetupScreen({ companionPreset, setCompanionPreset, inviteAccepted, setInviteAccepted, setView }) {
-  const [inviteCode, setInviteCode] = useState('');
+function SetupScreen({ companionPreset, setCompanionPreset, setInviteAccepted, setView }) {
   const initialChoices = companionChoicesFromPreset(companionPreset);
   const [gender, setGender] = useState(initialChoices.gender);
   const [style, setStyle] = useState(initialChoices.style);
-  const codeValid = inviteAccepted || inviteCode.trim().toUpperCase() === INVITE_CODE;
   const selectedPreset = companionPresetFromChoices(gender, style);
 
   function continueToApp() {
-    if (!codeValid || !selectedPreset) return;
+    if (!selectedPreset) return;
     setCompanionPreset(selectedPreset);
     setInviteAccepted(true);
     setView('journal');
@@ -594,17 +591,6 @@ function SetupScreen({ companionPreset, setCompanionPreset, inviteAccepted, setI
       <p className="setup-copy">
         Pick the version that feels closest to you. Swingo will use it whenever your logged emotion needs a reaction.
       </p>
-      {!inviteAccepted && (
-        <label className="invite-field">
-          Invitation code
-          <input
-            value={inviteCode}
-            onChange={(event) => setInviteCode(event.target.value)}
-            placeholder="Try SWINGO"
-            autoCapitalize="characters"
-          />
-        </label>
-      )}
       <div className="setup-choice-block">
         <p>I dance as</p>
         <div className="setup-segment">
@@ -634,7 +620,7 @@ function SetupScreen({ companionPreset, setCompanionPreset, inviteAccepted, setI
           </div>
         </section>
       )}
-      <button className="gold-cta setup-cta" type="button" disabled={!codeValid || !selectedPreset} onClick={continueToApp}>
+      <button className="gold-cta setup-cta" type="button" disabled={!selectedPreset} onClick={continueToApp}>
         Start reflecting
         <span>+</span>
       </button>
