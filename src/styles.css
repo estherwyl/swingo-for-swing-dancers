@@ -492,26 +492,6 @@ p {
   line-height: 1.48;
 }
 
-.invite-field {
-  display: block;
-  margin-top: 22px;
-  color: rgba(241, 231, 214, 0.78);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.invite-field input {
-  width: 100%;
-  margin-top: 8px;
-  padding: 13px 15px;
-  border: 1px solid rgba(241, 231, 214, 0.11);
-  border-radius: 14px;
-  outline: none;
-  background: rgba(241, 231, 214, 0.055);
-  color: var(--ink);
-  text-transform: uppercase;
-}
-
 .setup-choice-block {
   margin-top: 20px;
 }
