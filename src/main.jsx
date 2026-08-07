@@ -5,7 +5,9 @@ import {
   Check,
   ChevronLeft,
   CirclePlus,
+  ExternalLink,
   Filter,
+  Link,
   ListChecks,
   MapPin,
   Search,
@@ -19,6 +21,46 @@ import {
 import './styles.css';
 
 const STORAGE_KEY = 'swingo_v2';
+const INVITE_CODE = 'SWINGO';
+const COMPANION_ASSET_VERSION = '2026-08-07-white-tennis-shoes';
+const MAX_REFERENCES_PER_MOVE = 3;
+
+const COMPANION_PRESETS = {
+  'dressed-up-feminine': {
+    label: 'Vintage feminine',
+    sub: 'Red dress, polished shoes, festival sparkle',
+    gender: 'feminine',
+    style: 'vintage',
+  },
+  'dressed-up-masculine': {
+    label: 'Vintage masculine',
+    sub: 'Bow tie, suspenders, Savoy polish',
+    gender: 'masculine',
+    style: 'vintage',
+  },
+  'casual-feminine': {
+    label: 'Casual feminine',
+    sub: 'Oversized top, sneakers, comfort-first',
+    gender: 'feminine',
+    style: 'casual',
+  },
+  'casual-masculine': {
+    label: 'Casual masculine',
+    sub: 'Relaxed tee, joggers, easy social energy',
+    gender: 'masculine',
+    style: 'casual',
+  },
+};
+
+const COMPANION_ORDER = ['dressed-up-feminine', 'dressed-up-masculine', 'casual-feminine', 'casual-masculine'];
+const COMPANION_GENDERS = [
+  ['feminine', 'Female dancer'],
+  ['masculine', 'Male dancer'],
+];
+const COMPANION_STYLES = [
+  ['vintage', 'Vintage'],
+  ['casual', 'Casual'],
+];
 
 const FAMILIES = {
   lindy: { label: 'Lindy Hop', color: '#E7B44C', dark: '#231708' },
@@ -42,12 +84,24 @@ const MOODS = {
   flowing: { label: 'Flowing', color: '#6FBF92', emoji: '😌' },
   curious: { label: 'Curious', color: '#6FA8CF', emoji: '🤔' },
   challenged: { label: 'Challenged', color: '#C46A7C', emoji: '😤' },
+  angry: { label: 'Angry', color: '#D05744', emoji: '😠' },
   confused: { label: 'Confused', color: '#9B8BC4', emoji: '😵‍💫' },
   frustrated: { label: 'Frustrated', color: '#D9704A', emoji: '😣' },
   inspired: { label: 'Inspired', color: '#E7C15A', emoji: '🤩' },
 };
 
-const MOOD_ORDER = ['proud', 'excited', 'flowing', 'curious', 'challenged', 'confused', 'frustrated', 'inspired'];
+const MOOD_ORDER = ['proud', 'excited', 'flowing', 'inspired', 'challenged', 'angry', 'confused', 'frustrated'];
+const MOOD_COMPANION_STATE = {
+  proud: 'celebrate',
+  excited: 'celebrate',
+  flowing: 'reflect',
+  inspired: 'reflect',
+  challenged: 'fired-up',
+  angry: 'fired-up',
+  confused: 'disappointed',
+  frustrated: 'disappointed',
+  curious: 'reflect',
+};
 
 function moodKeys(value) {
   if (Array.isArray(value)) return value.filter((key) => MOODS[key]);
@@ -56,6 +110,26 @@ function moodKeys(value) {
 
 function moodList(value) {
   return moodKeys(value).map((key) => MOODS[key]);
+}
+
+function companionStateFromMoods(value) {
+  const [key] = moodKeys(value);
+  return MOOD_COMPANION_STATE[key] || 'reflect';
+}
+
+function companionPresetFromChoices(gender, style) {
+  return COMPANION_ORDER.find((preset) => {
+    const item = COMPANION_PRESETS[preset];
+    return item.gender === gender && item.style === style;
+  }) || '';
+}
+
+function companionChoicesFromPreset(preset) {
+  const item = COMPANION_PRESETS[preset];
+  return {
+    gender: item?.gender || '',
+    style: item?.style || '',
+  };
 }
 
 const TAXONOMY = {
@@ -165,6 +239,7 @@ function freshCheckin() {
     status: null,
     mood: [],
     note: '',
+    referenceUrls: [''],
     date: todayStr(),
     cls: '',
     teacher: '',
@@ -187,6 +262,37 @@ function fmt(dateStr) {
 
 function sortKey(entry) {
   return `${entry.date}T${entry.time || '00:00'}`;
+}
+
+function daysSince(dateStr) {
+  const [year, month, day] = (dateStr || todayStr()).split('-').map(Number);
+  const then = new Date(year, (month || 1) - 1, day || 1);
+  const now = new Date();
+  return Math.max(0, Math.floor((now - then) / 86400000));
+}
+
+function moveKey(family, moveName) {
+  return `${family}|${moveName}`;
+}
+
+function normalizeReferenceUrl(value) {
+  const raw = value.trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function referenceDisplayName(url) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname.replace(/^www\./, '');
+  } catch {
+    return 'Open link';
+  }
 }
 
 function seedEntries() {
@@ -259,7 +365,18 @@ function aggregateEntries(entries) {
 }
 
 function App() {
-  const [view, setView] = useState('journal');
+  const storedSetup = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {};
+    } catch {
+      return {};
+    }
+  }, []);
+  const [companionPreset, setCompanionPreset] = useState(
+    COMPANION_PRESETS[storedSetup.companionPreset] ? storedSetup.companionPreset : '',
+  );
+  const [inviteAccepted, setInviteAccepted] = useState(Boolean(storedSetup.inviteAccepted));
+  const [view, setView] = useState(() => (storedSetup.inviteAccepted && COMPANION_PRESETS[storedSetup.companionPreset] ? 'journal' : 'setup'));
   const [step, setStep] = useState(0);
   const [entries, setEntries] = useState(() => {
     try {
@@ -277,10 +394,19 @@ function App() {
       return [];
     }
   });
+  const [moveReferences, setMoveReferences] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      return stored?.moveReferences || {};
+    } catch {
+      return {};
+    }
+  });
   const [checkin, setCheckin] = useState(freshCheckin);
   const [moveSearch, setMoveSearch] = useState('');
   const [bankSearch, setBankSearch] = useState('');
   const [bankFilter, setBankFilter] = useState('all');
+  const [bankMode, setBankMode] = useState('list');
   const [detailKey, setDetailKey] = useState(null);
   const [detailFrom, setDetailFrom] = useState('journal');
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -289,8 +415,8 @@ function App() {
   const [customName, setCustomName] = useState('');
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, customMoves }));
-  }, [entries, customMoves]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, customMoves, moveReferences, companionPreset, inviteAccepted }));
+  }, [entries, customMoves, moveReferences, companionPreset, inviteAccepted]);
 
   useEffect(() => {
     document.querySelector('.app-scroll')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -342,6 +468,10 @@ function App() {
     if (!checkin.family || !checkin.moveName) return;
     const now = new Date();
     const pad = (value) => String(value).padStart(2, '0');
+    const draftReferenceUrls = (Array.isArray(checkin.referenceUrls) ? checkin.referenceUrls : [checkin.referenceUrl || ''])
+      .map((url) => normalizeReferenceUrl(url || ''))
+      .filter(Boolean);
+    const referenceUrls = [...new Set(draftReferenceUrls)];
     const entry = {
       id: `entry-${Date.now()}`,
       ...checkin,
@@ -350,8 +480,31 @@ function App() {
       status: checkin.status || 'first_learned',
       mood: moodKeys(checkin.mood),
       note: checkin.note.trim(),
+      referenceUrls: [],
+      referenceUrl: '',
     };
     setEntries((current) => [entry, ...current]);
+    if (referenceUrls.length) {
+      const key = moveKey(checkin.family, checkin.moveName);
+      setMoveReferences((current) => {
+        const existing = current[key] || [];
+        const existingUrls = new Set(existing.map((item) => item.url));
+        const remainingSlots = Math.max(0, MAX_REFERENCES_PER_MOVE - existing.length);
+        const newReferences = referenceUrls
+          .filter((url) => !existingUrls.has(url))
+          .slice(0, remainingSlots)
+          .map((url, index) => ({
+            id: `ref-${Date.now()}-${index}`,
+            url,
+            createdAt: now.toISOString(),
+          }));
+        if (!newReferences.length) return current;
+        return {
+          ...current,
+          [key]: [...existing, ...newReferences],
+        };
+      });
+    }
     setStep(4);
   }
 
@@ -372,8 +525,12 @@ function App() {
     setBankSearch,
     bankFilter,
     setBankFilter,
+    bankMode,
+    setBankMode,
     customMoves,
     setCustomMoves,
+    moveReferences,
+    setMoveReferences,
     customName,
     setCustomName,
     addingCustom,
@@ -390,6 +547,10 @@ function App() {
     goBack,
     selectMove,
     saveCheckin,
+    companionPreset,
+    setCompanionPreset,
+    inviteAccepted,
+    setInviteAccepted,
   };
 
   const showNav = view === 'journal' || view === 'moves' || view === 'wrapped' || view === 'detail' || (view === 'checkin' && step <= 2);
@@ -398,6 +559,7 @@ function App() {
     <main className="swingo-stage">
       <section className="app-shell" aria-label="Swingo app">
         <div className="app-scroll">
+          {view === 'setup' && <SetupScreen {...context} />}
           {view === 'journal' && <JournalScreen {...context} />}
           {view === 'checkin' && <CheckinScreen {...context} />}
           {view === 'moves' && <MoveBankScreen {...context} />}
@@ -407,6 +569,76 @@ function App() {
         {showNav && <BottomNav view={view} detailFrom={detailFrom} startCheckin={startCheckin} setView={setView} />}
       </section>
     </main>
+  );
+}
+
+function SetupScreen({ companionPreset, setCompanionPreset, inviteAccepted, setInviteAccepted, setView }) {
+  const [inviteCode, setInviteCode] = useState('');
+  const initialChoices = companionChoicesFromPreset(companionPreset);
+  const [gender, setGender] = useState(initialChoices.gender);
+  const [style, setStyle] = useState(initialChoices.style);
+  const codeValid = inviteAccepted || inviteCode.trim().toUpperCase() === INVITE_CODE;
+  const selectedPreset = companionPresetFromChoices(gender, style);
+
+  function continueToApp() {
+    if (!codeValid || !selectedPreset) return;
+    setCompanionPreset(selectedPreset);
+    setInviteAccepted(true);
+    setView('journal');
+  }
+
+  return (
+    <div className="screen setup-screen">
+      <div className="brand-script">Swingo</div>
+      <h1 className="setup-title">Choose your dance self.</h1>
+      <p className="setup-copy">
+        Pick the version that feels closest to you. Swingo will use it whenever your logged emotion needs a reaction.
+      </p>
+      {!inviteAccepted && (
+        <label className="invite-field">
+          Invitation code
+          <input
+            value={inviteCode}
+            onChange={(event) => setInviteCode(event.target.value)}
+            placeholder="Try SWINGO"
+            autoCapitalize="characters"
+          />
+        </label>
+      )}
+      <div className="setup-choice-block">
+        <p>I dance as</p>
+        <div className="setup-segment">
+          {COMPANION_GENDERS.map(([key, label]) => (
+            <button type="button" className={gender === key ? 'selected' : ''} key={key} onClick={() => setGender(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="setup-choice-block">
+        <p>My dance vibe is</p>
+        <div className="setup-segment">
+          {COMPANION_STYLES.map(([key, label]) => (
+            <button type="button" className={style === key ? 'selected' : ''} key={key} onClick={() => setStyle(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {selectedPreset && (
+        <section className="setup-preview">
+          <DancerCompanion preset={selectedPreset} state="reflect" size="preview" />
+          <div>
+            <strong>{COMPANION_PRESETS[selectedPreset].label}</strong>
+            <span>{COMPANION_PRESETS[selectedPreset].sub}</span>
+          </div>
+        </section>
+      )}
+      <button className="gold-cta setup-cta" type="button" disabled={!codeValid || !selectedPreset} onClick={continueToApp}>
+        Start reflecting
+        <span>+</span>
+      </button>
+    </div>
   );
 }
 
@@ -423,6 +655,7 @@ function JournalScreen({
   settingsOpen,
   setSettingsOpen,
   startCheckin,
+  companionPreset,
 }) {
   const hasEntries = entries.length > 0;
 
@@ -449,6 +682,9 @@ function JournalScreen({
               <button type="button" className="danger" onClick={() => { setEntries([]); setSettingsOpen(false); }}>
                 Clear my dance story
               </button>
+              <button type="button" onClick={() => { setView('setup'); setSettingsOpen(false); }}>
+                Change companion
+              </button>
             </div>
           )}
         </div>
@@ -462,6 +698,14 @@ function JournalScreen({
       <h1 className="hero-title">
         Your dance <em>story</em> {hasEntries ? 'is growing.' : 'starts here.'}
       </h1>
+
+      <section className="companion-prompt">
+        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state="reflect" size="home" />
+        <div>
+          <p>What do you want to remember from today's dance?</p>
+          <span>Your dance self is ready when you are.</span>
+        </div>
+      </section>
 
       <button className="gold-cta" type="button" onClick={() => startCheckin()}>
         Check in today's dance
@@ -734,13 +978,61 @@ function StatusStep({ checkin, setCheckin, setStep, entries, goBack }) {
   );
 }
 
-function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
+function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, moveReferences }) {
   const dateRef = useRef(null);
+  const companionState = companionStateFromMoods(checkin.mood);
+  const references = moveReferences[moveKey(checkin.family, checkin.moveName)] || [];
+  const availableReferenceSlots = Math.max(0, MAX_REFERENCES_PER_MOVE - references.length);
+  const draftReferenceUrls = (Array.isArray(checkin.referenceUrls) ? checkin.referenceUrls : [checkin.referenceUrl || ''])
+    .slice(0, Math.max(1, availableReferenceSlots));
+  const visibleReferenceUrls = availableReferenceSlots > 0 ? (draftReferenceUrls.length ? draftReferenceUrls : ['']) : [];
+  const hasReferenceDraft = visibleReferenceUrls.some((url) => url.trim());
+  const invalidReferenceIndexes = new Set(
+    visibleReferenceUrls
+      .map((url, index) => (url.trim() && !normalizeReferenceUrl(url) ? index : null))
+      .filter((index) => index !== null),
+  );
+  const filledReferenceCount = visibleReferenceUrls.filter((url) => url.trim()).length;
+  const lastReferenceUrl = visibleReferenceUrls[visibleReferenceUrls.length - 1] || '';
+  const canAddReferenceField =
+    availableReferenceSlots > visibleReferenceUrls.length &&
+    Boolean(normalizeReferenceUrl(lastReferenceUrl)) &&
+    invalidReferenceIndexes.size === 0;
+  const canSave = !hasReferenceDraft || invalidReferenceIndexes.size === 0;
+
+  function updateReferenceUrl(index, value) {
+    setCheckin((current) => {
+      const currentUrls = Array.isArray(current.referenceUrls) ? [...current.referenceUrls] : [current.referenceUrl || ''];
+      currentUrls[index] = value;
+      return { ...current, referenceUrls: currentUrls };
+    });
+  }
+
+  function clearReferenceUrl(index) {
+    setCheckin((current) => {
+      const currentUrls = Array.isArray(current.referenceUrls) ? [...current.referenceUrls] : [current.referenceUrl || ''];
+      if (currentUrls.length === 1) currentUrls[index] = '';
+      else currentUrls.splice(index, 1);
+      return { ...current, referenceUrls: currentUrls.length ? currentUrls : [''] };
+    });
+  }
+
+  function addReferenceField() {
+    if (!canAddReferenceField) return;
+    setCheckin((current) => {
+      const currentUrls = Array.isArray(current.referenceUrls) ? current.referenceUrls : [current.referenceUrl || ''];
+      return { ...current, referenceUrls: [...currentUrls, ''].slice(0, MAX_REFERENCES_PER_MOVE) };
+    });
+  }
 
   return (
     <div className="screen check-screen mood-screen">
       <StepHeader title="Almost there" progress="88%" onBack={goBack} />
       <h1 className="move-title">How did this learning feel?</h1>
+      <section className="mood-companion">
+        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state={companionState} size="small" />
+        <p>{companionCopy(companionState)}</p>
+      </section>
       <div className="mood-grid">
         {MOOD_ORDER.map((key) => {
           const mood = MOODS[key];
@@ -753,12 +1045,10 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
               key={key}
               onClick={() =>
                 setCheckin((current) => {
-                  const currentMoods = moodKeys(current.mood);
+                  const selectedMood = moodKeys(current.mood)[0];
                   return {
                     ...current,
-                    mood: currentMoods.includes(key)
-                      ? currentMoods.filter((moodKey) => moodKey !== key)
-                      : [...currentMoods, key],
+                    mood: selectedMood === key ? [] : [key],
                   };
                 })
               }
@@ -776,6 +1066,43 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
         placeholder="Keep knees soft. Don't rush the rhythm…"
         rows={3}
       />
+      <section className="reference-input-panel">
+        <div>
+          <label className="field-label">Reference (max 3)</label>
+        </div>
+        {availableReferenceSlots > 0 ? (
+          <>
+            {visibleReferenceUrls.map((url, index) => (
+              <div className="reference-row" key={`reference-${index}`}>
+                <label className={`reference-field ${invalidReferenceIndexes.has(index) ? 'invalid' : ''}`}>
+                  <Link size={17} />
+                  <input
+                    value={url}
+                    onChange={(event) => updateReferenceUrl(index, event.target.value)}
+                    placeholder="https://youtube.com/..."
+                    inputMode="url"
+                    aria-label={`Reference link ${index + 1}`}
+                  />
+                  {url && (
+                    <button type="button" onClick={() => clearReferenceUrl(index)} aria-label={`Clear reference link ${index + 1}`}>
+                      <X size={14} />
+                    </button>
+                  )}
+                </label>
+              </div>
+            ))}
+            {invalidReferenceIndexes.size > 0 && <p className="field-error">Use a valid http or https web link.</p>}
+            {canAddReferenceField && (
+              <button type="button" className="reference-add-btn" onClick={addReferenceField}>
+                <CirclePlus size={16} />
+                Add another reference
+              </button>
+            )}
+          </>
+        ) : (
+          <p className="reference-cap-note">This move already has 3 references.</p>
+        )}
+      </section>
       <div className="optional-fields">
         <label>
           <CalendarDays size={17} onClick={() => dateRef.current?.showPicker?.()} />
@@ -805,7 +1132,7 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
           onChange={(value) => setCheckin((current) => ({ ...current, location: value }))}
         />
       </div>
-      <button className="green-cta save-cta" type="button" onClick={saveCheckin}>Save to my dance story</button>
+      <button className="green-cta save-cta" type="button" disabled={!canSave} onClick={saveCheckin}>Save to my dance story</button>
     </div>
   );
 }
@@ -824,22 +1151,25 @@ function OptionalField({ icon, value, placeholder, onChange }) {
   );
 }
 
-function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin }) {
+function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin, companionPreset, setDetailKey, setDetailFrom }) {
   const family = FAMILIES[checkin.family] || FAMILIES.lindy;
   const status = STATUSES[checkin.status || 'first_learned'];
   const moods = moodList(checkin.mood);
+  const companionState = companionStateFromMoods(checkin.mood);
+  const successTone = companionSuccessTone(companionState);
+  const savedMoveKey = moveKey(checkin.family, checkin.moveName);
 
   return (
     <div className="screen success-screen" style={{ '--conf-color': family.color }}>
       <Confetti />
-      <h1>Nice one!</h1>
+      <h1>{successTone.title}</h1>
       <h2>
-        <span style={{ color: family.color }}>{checkin.moveName}</span> added to your 2026 dance story.
+        {successTone.before} <span style={{ color: family.color }}>{checkin.moveName}</span> {successTone.after}
       </h2>
       <div className="success-sticker">
-        <Sticker family={checkin.family} moveName={checkin.moveName} />
-        <span>✦</span>
+        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state={companionState} size="success" />
       </div>
+      <p className="companion-reaction">{companionCopy(companionState)}</p>
       <p className="success-sub">
         {family.label} · {status.label}
         {moods.length > 0 && (
@@ -850,21 +1180,87 @@ function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin }) {
       </p>
       <p className="success-count"><b>{bank.length}</b> moves collected this year</p>
       <div className="success-actions">
-        <button type="button" className="gold-cta centered" onClick={() => { setView('journal'); setCheckin(freshCheckin()); }}>
-          View in journal
+        <button
+          type="button"
+          className="gold-cta centered"
+          onClick={() => {
+            setDetailKey(savedMoveKey);
+            setDetailFrom('journal');
+            setView('detail');
+            setCheckin(freshCheckin());
+          }}
+        >
+          Review this move
         </button>
         <button type="button" className="secondary-btn" onClick={() => startCheckin()}>
           Add another move
         </button>
-        <button type="button" className="plain-btn" onClick={() => { setView('moves'); setCheckin(freshCheckin()); }}>
-          Go to Move Bank
+        <button type="button" className="plain-btn" onClick={() => { setView('journal'); setCheckin(freshCheckin()); }}>
+          Back to journal
         </button>
       </div>
     </div>
   );
 }
 
-function MoveBankScreen({ bank, bankSearch, setBankSearch, bankFilter, setBankFilter, setView, setDetailKey, setDetailFrom }) {
+function companionCopy(state) {
+  if (state === 'celebrate') return 'This felt good. Remember what clicked.';
+  if (state === 'fired-up') return 'That anger has information. Save what happened, then come back to yourself.';
+  if (state === 'disappointed') return 'This one did not land the way you hoped. Keep the lesson, not the weight.';
+  return 'Small details become real progress when you remember them.';
+}
+
+function companionSuccessTone(state) {
+  if (state === 'celebrate') {
+    return {
+      title: 'Nice one!',
+      before: '',
+      after: 'is saved as a win in your 2026 dance story.',
+    };
+  }
+  if (state === 'fired-up') {
+    return {
+      title: 'That feeling counts.',
+      before: '',
+      after: 'is saved with the part that made you fired up.',
+    };
+  }
+  if (state === 'disappointed') {
+    return {
+      title: 'Still worth saving.',
+      before: '',
+      after: 'is saved, even though it did not feel how you wanted.',
+    };
+  }
+  return {
+    title: 'Saved for future you.',
+    before: '',
+    after: 'is now part of your 2026 dance story.',
+  };
+}
+
+function DancerCompanion({ preset = 'dressed-up-feminine', state = 'reflect', size = 'medium' }) {
+  const safePreset = COMPANION_PRESETS[preset] ? preset : 'dressed-up-feminine';
+  const src = `/assets/companions/${safePreset}/${state}.webp?v=${COMPANION_ASSET_VERSION}`;
+  return (
+    <figure className={`dancer-companion ${size}`} data-state={state}>
+      <img src={src} alt="Your Swingo dance self" />
+    </figure>
+  );
+}
+
+function MoveBankScreen({
+  bank,
+  bankSearch,
+  setBankSearch,
+  bankFilter,
+  setBankFilter,
+  bankMode,
+  setBankMode,
+  setView,
+  setDetailKey,
+  setDetailFrom,
+}) {
   const filtered = useMemo(() => {
     let rows = [...bank];
     if (['lindy', 'solo', 'charleston'].includes(bankFilter)) rows = rows.filter((row) => row.family === bankFilter);
@@ -893,6 +1289,47 @@ function MoveBankScreen({ bank, bankSearch, setBankSearch, bankFilter, setBankFi
           <Filter size={18} />
         </button>
       </div>
+      <div className="bank-mode-switch" aria-label="Move Bank view">
+        {[
+          ['list', 'List'],
+          ['map', 'Map'],
+          ['practice', 'Practice'],
+        ].map(([key, label]) => (
+          <button type="button" className={bankMode === key ? 'selected' : ''} key={key} onClick={() => setBankMode(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {bank.length > 0 && (
+        <div className="family-bubbles">
+          {Object.entries(FAMILIES).map(([key, family]) => (
+            <div key={key}>
+              <strong style={{ color: family.color }}>{bank.filter((row) => row.family === key).length}</strong>
+              <span>{family.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {bankMode === 'list' && (
+        <MoveListView
+          filtered={filtered}
+          bank={bank}
+          bankSearch={bankSearch}
+          setBankSearch={setBankSearch}
+          bankFilter={bankFilter}
+          setBankFilter={setBankFilter}
+          onOpen={open}
+        />
+      )}
+      {bankMode === 'map' && <MoveMapView bank={bank} onOpen={open} />}
+      {bankMode === 'practice' && <PracticeView bank={bank} onOpen={open} />}
+    </div>
+  );
+}
+
+function MoveListView({ filtered, bank, bankSearch, setBankSearch, bankFilter, setBankFilter, onOpen }) {
+  return (
+    <>
       <label className="search-field">
         <input value={bankSearch} onChange={(event) => setBankSearch(event.target.value)} placeholder="Search moves…" />
         <Search size={17} />
@@ -912,19 +1349,86 @@ function MoveBankScreen({ bank, bankSearch, setBankSearch, bankFilter, setBankFi
           </button>
         ))}
       </div>
-      {bank.length > 0 && (
-        <div className="family-bubbles">
-          {Object.entries(FAMILIES).map(([key, family]) => (
-            <div key={key}>
-              <strong style={{ color: family.color }}>{bank.filter((row) => row.family === key).length}</strong>
-              <span>{family.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
       <h2 className="list-label">{filtered.length === bank.length ? 'All moves' : `${filtered.length} result${filtered.length === 1 ? '' : 's'}`}</h2>
-      {filtered.length ? filtered.map((row) => <MoveBankCard key={row.key} row={row} onOpen={() => open(row)} />) : <p className="empty-copy">No moves match that search.</p>}
+      {filtered.length ? filtered.map((row) => (
+        <MoveBankCard key={row.key} row={row} onOpen={() => onOpen(row)} />
+      )) : <p className="empty-copy">No moves match that search.</p>}
+    </>
+  );
+}
+
+function MoveMapView({ bank, onOpen }) {
+  return (
+    <section className="move-map">
+      {Object.entries(FAMILIES).map(([familyKey, family]) => {
+        const rows = bank.filter((row) => row.family === familyKey).toSorted((a, b) => b.logs - a.logs);
+        const signature = rows.filter((row) => row.logs >= 3).slice(0, 5);
+        const social = rows.filter((row) => row.hasSocial).slice(0, 5);
+        const notUsed = rows.filter((row) => !row.hasSocial).slice(0, 5);
+        const newMoves = rows.filter((row) => row.logs === 1 && row.latestStatus === 'first_learned').slice(0, 5);
+        return (
+          <article className="map-family" key={familyKey} style={{ '--family-color': family.color }}>
+            <div className="map-hub">
+              <strong>{family.label}</strong>
+              <span>{rows.length} moves</span>
+            </div>
+            <MapLane label="Signature moves" rows={signature} onOpen={onOpen} />
+            <MapLane label="Social tested" rows={social} onOpen={onOpen} />
+            <MapLane label="Not used yet" rows={notUsed} onOpen={onOpen} />
+            <MapLane label="New branches" rows={newMoves} onOpen={onOpen} />
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function MapLane({ label, rows, onOpen }) {
+  return (
+    <div className="map-lane">
+      <small>{label}</small>
+      <div>
+        {rows.length ? rows.map((row) => (
+          <button type="button" key={row.key} onClick={() => onOpen(row)}>
+            {row.moveName}
+          </button>
+        )) : <span>No moves yet</span>}
+      </div>
     </div>
+  );
+}
+
+function PracticeView({ bank, onOpen }) {
+  const oldRows = [...bank].toSorted((a, b) => daysSince(b.latestSk.slice(0, 10)) - daysSince(a.latestSk.slice(0, 10))).slice(0, 4);
+  const socialReady = bank.filter((row) => row.logs > 1 && !row.hasSocial).toSorted((a, b) => b.logs - a.logs).slice(0, 4);
+  const buildConfidence = bank.filter((row) => row.logs === 1).toSorted((a, b) => a.latestSk.localeCompare(b.latestSk)).slice(0, 4);
+
+  return (
+    <section className="practice-board">
+      <PracticeLane title="Warm up again" subtitle="Moves you have not touched recently" rows={oldRows} onOpen={onOpen} />
+      <PracticeLane title="Try socially" subtitle="Revisited moves not yet used in social" rows={socialReady} onOpen={onOpen} />
+      <PracticeLane title="Build confidence" subtitle="Newer one-log moves that need another rep" rows={buildConfidence} onOpen={onOpen} />
+    </section>
+  );
+}
+
+function PracticeLane({ title, subtitle, rows, onOpen }) {
+  return (
+    <article className="practice-lane">
+      <div>
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+      {rows.length ? rows.map((row) => (
+        <button type="button" key={row.key} onClick={() => onOpen(row)} style={{ '--family-color': FAMILIES[row.family].color }}>
+          <Sticker family={row.family} moveName={row.moveName} />
+          <span>
+            <strong>{row.moveName}</strong>
+            <small>{row.logs} {row.logs === 1 ? 'log' : 'logs'} · latest {fmt(row.latestSk.slice(0, 10)).md}</small>
+          </span>
+        </button>
+      )) : <p className="empty-copy">Nothing here yet.</p>}
+    </article>
   );
 }
 
@@ -946,11 +1450,15 @@ function MoveBankCard({ row, onOpen }) {
   );
 }
 
-function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack }) {
+function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack, moveReferences, companionPreset }) {
   const detail = bank.find((row) => row.key === detailKey) || bank[0];
   if (!detail) return null;
   const family = FAMILIES[detail.family];
   const mood = moodList(detail.mood)[0];
+  const references = moveReferences[detail.key] || [];
+  const latestEntry = detail.list[0];
+  const latestMoods = moodList(latestEntry?.mood);
+  const detailCompanionState = companionStateFromMoods(latestEntry?.mood);
 
   return (
     <div className="screen detail-screen">
@@ -969,6 +1477,36 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
         <SummaryCell label="Latest" value={STATUSES[detail.latestStatus].short} />
         <SummaryCell label="Top mood" value={mood?.label || '—'} color={mood?.color} />
       </div>
+      <section className="detail-companion">
+        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state={detailCompanionState} size="small" />
+        <div>
+          <strong>{companionCopy(detailCompanionState)}</strong>
+          <span>
+            Latest feeling: {latestMoods.length ? latestMoods.map((item) => `${item.emoji} ${item.label}`).join(' · ') : 'Not logged yet'}
+          </span>
+        </div>
+      </section>
+      <section className="reference-section">
+        <div className="section-head">
+          <h2 className="list-label">Reference</h2>
+          <span>{references.length}/{MAX_REFERENCES_PER_MOVE}</span>
+        </div>
+        {references.length ? (
+          <div className="reference-list">
+            {references.map((reference, index) => (
+              <a key={reference.id} href={reference.url} target="_blank" rel="noreferrer">
+                <span>
+                  <strong>Reference {index + 1}</strong>
+                  <small>{referenceDisplayName(reference.url)}</small>
+                </span>
+                <ExternalLink size={16} />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-copy left">Add a YouTube, Instagram, TikTok, or recap link the next time you log this move.</p>
+        )}
+      </section>
       <h2 className="list-label">History</h2>
       <div className="timeline">
         {detail.list.map((entry) => (
