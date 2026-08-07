@@ -5,7 +5,9 @@ import {
   Check,
   ChevronLeft,
   CirclePlus,
+  ExternalLink,
   Filter,
+  Link,
   ListChecks,
   MapPin,
   Search,
@@ -19,6 +21,7 @@ import {
 import './styles.css';
 
 const STORAGE_KEY = 'swingo_v2';
+const MAX_REFERENCES_PER_MOVE = 3;
 
 const FAMILIES = {
   lindy: { label: 'Lindy Hop', color: '#E7B44C', dark: '#231708' },
@@ -165,6 +168,7 @@ function freshCheckin() {
     status: null,
     mood: [],
     note: '',
+    referenceUrls: [''],
     date: todayStr(),
     cls: '',
     teacher: '',
@@ -187,6 +191,30 @@ function fmt(dateStr) {
 
 function sortKey(entry) {
   return `${entry.date}T${entry.time || '00:00'}`;
+}
+
+function moveKey(family, moveName) {
+  return `${family}|${moveName}`;
+}
+
+function normalizeReferenceUrl(value) {
+  const raw = value.trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function referenceDisplayName(url) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname.replace(/^www\./, '');
+  } catch {
+    return 'Open link';
+  }
 }
 
 function seedEntries() {
@@ -277,6 +305,14 @@ function App() {
       return [];
     }
   });
+  const [moveReferences, setMoveReferences] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      return stored?.moveReferences || {};
+    } catch {
+      return {};
+    }
+  });
   const [checkin, setCheckin] = useState(freshCheckin);
   const [moveSearch, setMoveSearch] = useState('');
   const [bankSearch, setBankSearch] = useState('');
@@ -289,8 +325,8 @@ function App() {
   const [customName, setCustomName] = useState('');
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, customMoves }));
-  }, [entries, customMoves]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, customMoves, moveReferences }));
+  }, [entries, customMoves, moveReferences]);
 
   useEffect(() => {
     document.querySelector('.app-scroll')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -342,6 +378,10 @@ function App() {
     if (!checkin.family || !checkin.moveName) return;
     const now = new Date();
     const pad = (value) => String(value).padStart(2, '0');
+    const draftReferenceUrls = (Array.isArray(checkin.referenceUrls) ? checkin.referenceUrls : [checkin.referenceUrl || ''])
+      .map((url) => normalizeReferenceUrl(url || ''))
+      .filter(Boolean);
+    const referenceUrls = [...new Set(draftReferenceUrls)];
     const entry = {
       id: `entry-${Date.now()}`,
       ...checkin,
@@ -350,8 +390,31 @@ function App() {
       status: checkin.status || 'first_learned',
       mood: moodKeys(checkin.mood),
       note: checkin.note.trim(),
+      referenceUrls: [],
+      referenceUrl: '',
     };
     setEntries((current) => [entry, ...current]);
+    if (referenceUrls.length) {
+      const key = moveKey(checkin.family, checkin.moveName);
+      setMoveReferences((current) => {
+        const existing = current[key] || [];
+        const existingUrls = new Set(existing.map((item) => item.url));
+        const remainingSlots = Math.max(0, MAX_REFERENCES_PER_MOVE - existing.length);
+        const newReferences = referenceUrls
+          .filter((url) => !existingUrls.has(url))
+          .slice(0, remainingSlots)
+          .map((url, index) => ({
+            id: `ref-${Date.now()}-${index}`,
+            url,
+            createdAt: now.toISOString(),
+          }));
+        if (!newReferences.length) return current;
+        return {
+          ...current,
+          [key]: [...existing, ...newReferences],
+        };
+      });
+    }
     setStep(4);
   }
 
@@ -374,6 +437,8 @@ function App() {
     setBankFilter,
     customMoves,
     setCustomMoves,
+    moveReferences,
+    setMoveReferences,
     customName,
     setCustomName,
     addingCustom,
@@ -734,8 +799,50 @@ function StatusStep({ checkin, setCheckin, setStep, entries, goBack }) {
   );
 }
 
-function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
+function MoodStep({ checkin, setCheckin, saveCheckin, goBack, moveReferences }) {
   const dateRef = useRef(null);
+  const references = moveReferences[moveKey(checkin.family, checkin.moveName)] || [];
+  const availableReferenceSlots = Math.max(0, MAX_REFERENCES_PER_MOVE - references.length);
+  const draftReferenceUrls = (Array.isArray(checkin.referenceUrls) ? checkin.referenceUrls : [checkin.referenceUrl || ''])
+    .slice(0, Math.max(1, availableReferenceSlots));
+  const visibleReferenceUrls = availableReferenceSlots > 0 ? (draftReferenceUrls.length ? draftReferenceUrls : ['']) : [];
+  const hasReferenceDraft = visibleReferenceUrls.some((url) => url.trim());
+  const invalidReferenceIndexes = new Set(
+    visibleReferenceUrls
+      .map((url, index) => (url.trim() && !normalizeReferenceUrl(url) ? index : null))
+      .filter((index) => index !== null),
+  );
+  const lastReferenceUrl = visibleReferenceUrls[visibleReferenceUrls.length - 1] || '';
+  const canAddReferenceField =
+    availableReferenceSlots > visibleReferenceUrls.length &&
+    Boolean(normalizeReferenceUrl(lastReferenceUrl)) &&
+    invalidReferenceIndexes.size === 0;
+  const canSave = !hasReferenceDraft || invalidReferenceIndexes.size === 0;
+
+  function updateReferenceUrl(index, value) {
+    setCheckin((current) => {
+      const currentUrls = Array.isArray(current.referenceUrls) ? [...current.referenceUrls] : [current.referenceUrl || ''];
+      currentUrls[index] = value;
+      return { ...current, referenceUrls: currentUrls };
+    });
+  }
+
+  function clearReferenceUrl(index) {
+    setCheckin((current) => {
+      const currentUrls = Array.isArray(current.referenceUrls) ? [...current.referenceUrls] : [current.referenceUrl || ''];
+      if (currentUrls.length === 1) currentUrls[index] = '';
+      else currentUrls.splice(index, 1);
+      return { ...current, referenceUrls: currentUrls.length ? currentUrls : [''] };
+    });
+  }
+
+  function addReferenceField() {
+    if (!canAddReferenceField) return;
+    setCheckin((current) => {
+      const currentUrls = Array.isArray(current.referenceUrls) ? current.referenceUrls : [current.referenceUrl || ''];
+      return { ...current, referenceUrls: [...currentUrls, ''].slice(0, MAX_REFERENCES_PER_MOVE) };
+    });
+  }
 
   return (
     <div className="screen check-screen mood-screen">
@@ -776,6 +883,43 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
         placeholder="Keep knees soft. Don't rush the rhythm…"
         rows={3}
       />
+      <section className="reference-input-panel">
+        <div>
+          <label className="field-label">Reference (max 3)</label>
+        </div>
+        {availableReferenceSlots > 0 ? (
+          <>
+            {visibleReferenceUrls.map((url, index) => (
+              <div className="reference-row" key={`reference-${index}`}>
+                <label className={`reference-field ${invalidReferenceIndexes.has(index) ? 'invalid' : ''}`}>
+                  <Link size={17} />
+                  <input
+                    value={url}
+                    onChange={(event) => updateReferenceUrl(index, event.target.value)}
+                    placeholder="https://youtube.com/..."
+                    inputMode="url"
+                    aria-label={`Reference link ${index + 1}`}
+                  />
+                  {url && (
+                    <button type="button" onClick={() => clearReferenceUrl(index)} aria-label={`Clear reference link ${index + 1}`}>
+                      <X size={14} />
+                    </button>
+                  )}
+                </label>
+              </div>
+            ))}
+            {invalidReferenceIndexes.size > 0 && <p className="field-error">Use a valid http or https web link.</p>}
+            {canAddReferenceField && (
+              <button type="button" className="reference-add-btn" onClick={addReferenceField}>
+                <CirclePlus size={16} />
+                Add another reference
+              </button>
+            )}
+          </>
+        ) : (
+          <p className="reference-cap-note">This move already has 3 references.</p>
+        )}
+      </section>
       <div className="optional-fields">
         <label>
           <CalendarDays size={17} onClick={() => dateRef.current?.showPicker?.()} />
@@ -805,7 +949,7 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack }) {
           onChange={(value) => setCheckin((current) => ({ ...current, location: value }))}
         />
       </div>
-      <button className="green-cta save-cta" type="button" onClick={saveCheckin}>Save to my dance story</button>
+      <button className="green-cta save-cta" type="button" disabled={!canSave} onClick={saveCheckin}>Save to my dance story</button>
     </div>
   );
 }
@@ -946,11 +1090,12 @@ function MoveBankCard({ row, onOpen }) {
   );
 }
 
-function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack }) {
+function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack, moveReferences }) {
   const detail = bank.find((row) => row.key === detailKey) || bank[0];
   if (!detail) return null;
   const family = FAMILIES[detail.family];
   const mood = moodList(detail.mood)[0];
+  const references = moveReferences[detail.key] || [];
 
   return (
     <div className="screen detail-screen">
@@ -969,6 +1114,27 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
         <SummaryCell label="Latest" value={STATUSES[detail.latestStatus].short} />
         <SummaryCell label="Top mood" value={mood?.label || '—'} color={mood?.color} />
       </div>
+      <section className="reference-section">
+        <div className="section-head">
+          <h2 className="list-label">Reference</h2>
+          <span>{references.length}/{MAX_REFERENCES_PER_MOVE}</span>
+        </div>
+        {references.length ? (
+          <div className="reference-list">
+            {references.map((reference, index) => (
+              <a key={reference.id} href={reference.url} target="_blank" rel="noreferrer">
+                <span>
+                  <strong>Reference {index + 1}</strong>
+                  <small>{referenceDisplayName(reference.url)}</small>
+                </span>
+                <ExternalLink size={16} />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-copy left">Add a YouTube, Instagram, TikTok, or recap link the next time you log this move.</p>
+        )}
+      </section>
       <h2 className="list-label">History</h2>
       <div className="timeline">
         {detail.list.map((entry) => (

@@ -46,6 +46,12 @@ button {
   color: inherit;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+  opacity: 0.46;
+}
+
 @keyframes swDrop {
   0% { opacity: 0; transform: translateY(-14px) scale(0.97); }
   60% { transform: translateY(3px) scale(1.01); }
@@ -914,6 +920,105 @@ textarea {
   line-height: 1.5;
 }
 
+.reference-input-panel {
+  margin-top: 16px;
+  padding: 13px;
+  border: 1px solid rgba(241, 231, 214, 0.08);
+  border-radius: 16px;
+  background: rgba(241, 231, 214, 0.035);
+}
+
+.reference-input-panel > div,
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reference-input-panel .field-label {
+  margin: 0;
+}
+
+.reference-row {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.reference-input-panel > div span,
+.section-head span {
+  flex: 0 0 auto;
+  color: rgba(241, 231, 214, 0.42);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.reference-field {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(241, 231, 214, 0.1);
+  border-radius: 13px;
+  background: rgba(241, 231, 214, 0.045);
+}
+
+.reference-field.invalid {
+  border-color: rgba(232, 112, 92, 0.7);
+}
+
+.reference-field svg {
+  flex: 0 0 auto;
+  color: rgba(241, 231, 214, 0.45);
+}
+
+.reference-field input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+}
+
+.reference-field button {
+  border: 0;
+  background: none;
+  color: rgba(241, 231, 214, 0.45);
+}
+
+.field-error {
+  margin-top: 8px;
+  color: var(--coral);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.reference-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(231, 180, 76, 0.22);
+  border-radius: 999px;
+  background: rgba(231, 180, 76, 0.08);
+  color: var(--gold);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.reference-cap-note {
+  margin-top: 10px;
+  color: rgba(241, 231, 214, 0.5);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .optional-fields {
   display: flex;
   flex-direction: column;
@@ -1287,6 +1392,64 @@ textarea {
   font-size: 13.5px;
   font-weight: 700;
   line-height: 1.12;
+}
+
+.reference-section {
+  margin-top: 20px;
+}
+
+.section-head .list-label {
+  margin-bottom: 10px;
+}
+
+.reference-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.reference-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 13px;
+  padding: 12px 13px;
+  border: 1px solid rgba(241, 231, 214, 0.08);
+  border-radius: 14px;
+  background: rgba(241, 231, 214, 0.045);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.reference-list a span {
+  min-width: 0;
+}
+
+.reference-list strong,
+.reference-list small {
+  display: block;
+}
+
+.reference-list strong {
+  font-size: 14px;
+}
+
+.reference-list small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: rgba(241, 231, 214, 0.5);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-list svg {
+  flex: 0 0 auto;
+  color: var(--gold);
+}
+
+.empty-copy.left {
+  text-align: left;
 }
 
 .timeline-row {
