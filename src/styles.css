@@ -1871,6 +1871,64 @@ textarea {
   line-height: 1.35;
 }
 
+.reference-section {
+  margin-top: 20px;
+}
+
+.section-head .list-label {
+  margin-bottom: 10px;
+}
+
+.reference-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.reference-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 13px;
+  padding: 12px 13px;
+  border: 1px solid rgba(241, 231, 214, 0.08);
+  border-radius: 14px;
+  background: rgba(241, 231, 214, 0.045);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.reference-list a span {
+  min-width: 0;
+}
+
+.reference-list strong,
+.reference-list small {
+  display: block;
+}
+
+.reference-list strong {
+  font-size: 14px;
+}
+
+.reference-list small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: rgba(241, 231, 214, 0.5);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-list svg {
+  flex: 0 0 auto;
+  color: var(--gold);
+}
+
+.empty-copy.left {
+  text-align: left;
+}
+
 .timeline-row {
   display: flex;
   gap: 14px;
