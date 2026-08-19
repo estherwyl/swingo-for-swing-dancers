@@ -275,6 +275,7 @@ function moveKey(family, moveName) {
 }
 
 function normalizeReferenceUrl(value) {
+  if (typeof value !== 'string') return '';
   const raw = value.trim();
   if (!raw) return '';
   try {
@@ -1441,7 +1442,12 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
   if (!detail) return null;
   const family = FAMILIES[detail.family];
   const mood = moodList(detail.mood)[0];
-  const references = moveReferences[detail.key] || [];
+  const references = (Array.isArray(moveReferences[detail.key]) ? moveReferences[detail.key] : [])
+    .map((reference) => {
+      const url = normalizeReferenceUrl(reference?.url);
+      return url ? { ...reference, url } : null;
+    })
+    .filter(Boolean);
   const latestEntry = detail.list[0];
   const latestMoods = moodList(latestEntry?.mood);
   const detailCompanionState = companionStateFromMoods(latestEntry?.mood);
@@ -1480,7 +1486,7 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
         {references.length ? (
           <div className="reference-list">
             {references.map((reference, index) => (
-              <a key={reference.id} href={reference.url} target="_blank" rel="noreferrer">
+              <a key={reference.id} href={reference.url} target="_blank" rel="noopener noreferrer">
                 <span>
                   <strong>Reference {index + 1}</strong>
                   <small>{referenceDisplayName(reference.url)}</small>
