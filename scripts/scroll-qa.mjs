@@ -1,19 +1,12 @@
-import { chromium } from 'playwright';
+import { checkinFlow, openApp, outputDir } from './qa-harness.mjs';
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({
-  viewport: { width: 430, height: 740 },
-  deviceScaleFactor: 1,
-  isMobile: true,
-  hasTouch: true,
-});
+const outDir = await outputDir();
+const { browser, page } = await openApp({ viewport: { width: 430, height: 740 }, mobile: true });
 
-await page.goto('http://127.0.0.1:5173/', { waitUntil: 'networkidle' });
-await page.getByRole('button', { name: /Check in today's dance/i }).click();
-await page.getByRole('button', { name: /Solo Jazz/i }).click();
-await page.getByRole('button', { name: /Shorty George/i }).click();
-await page.getByRole('button', { name: /Next/i }).click();
-await page.getByText('How did this learning feel?').waitFor();
+await checkinFlow.start(page);
+await checkinFlow.chooseFamily(page);
+await checkinFlow.chooseMove(page);
+await checkinFlow.continueToMood(page);
 
 const before = await page.evaluate(() => {
   const screen = document.querySelector('.app-scroll');
@@ -32,7 +25,7 @@ await page.locator('.app-scroll').evaluate((element) => {
 });
 await page.waitForTimeout(120);
 await page.screenshot({
-  path: '/Users/estherwang/Documents/Swingo/swingo-mood-scroll-fixed.png',
+  path: `${outDir}/swingo-mood-scroll-fixed.png`,
   fullPage: true,
 });
 

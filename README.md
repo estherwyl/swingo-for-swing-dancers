@@ -98,6 +98,9 @@ Run the focused mood-screen scroll check:
 node scripts/scroll-qa.mjs
 ```
 
+Both scripts share the Playwright harness in `scripts/qa-harness.mjs`. Screenshots are written to
+`qa-output/`; override the target with `SWINGO_QA_OUT_DIR`, and the app URL with `SWINGO_QA_BASE_URL`.
+
 The scroll QA was added after a mobile bug where the mood and note screen could feel
 stuck under the bottom navigation. The current version keeps the save button visible
 above the nav and confirms the screen can scroll.
@@ -129,10 +132,12 @@ database, media upload, social sharing, or full Wrapped report generation yet.
 ├── index.html
 ├── package.json
 ├── scripts/
+│   ├── qa-harness.mjs
 │   ├── scroll-qa.mjs
 │   └── visual-qa.mjs
 ├── src/
-│   ├── main.jsx
+│   ├── lib/            # shared domain data and helpers
+│   ├── main.jsx        # screens and components
 │   └── styles.css
 └── vercel.json
 ```
