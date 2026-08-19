@@ -21,6 +21,7 @@ import {
 import './styles.css';
 
 const STORAGE_KEY = 'swingo_v2';
+const FALLBACK_FAMILY = { label: 'Swing', color: '#E7B44C', dark: '#231708' };
 const COMPANION_ASSET_VERSION = '2026-08-07-white-tennis-shoes';
 const MAX_REFERENCES_PER_MOVE = 3;
 
@@ -274,6 +275,14 @@ function moveKey(family, moveName) {
   return `${family}|${moveName}`;
 }
 
+function familyOf(key) {
+  return FAMILIES[key] || FALLBACK_FAMILY;
+}
+
+function statusOf(key) {
+  return STATUSES[key] || STATUSES.practiced;
+}
+
 function normalizeReferenceUrl(value) {
   const raw = value.trim();
   if (!raw) return '';
@@ -331,6 +340,77 @@ function seedEntries() {
   }));
 }
 
+function readStoredState() {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn('Swingo could not read saved data from this browser.', error);
+    return {};
+  }
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Saved Swingo data is not an object');
+    }
+    return parsed;
+  } catch (error) {
+    console.warn('Swingo found unreadable saved data and started from the sample story.', error);
+    return {};
+  }
+}
+
+function writeStoredState(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return null;
+  } catch (error) {
+    console.error('Swingo could not save your dance story to this browser.', error);
+    return error;
+  }
+}
+
+function sanitizeEntries(value) {
+  if (!Array.isArray(value)) return [];
+  const kept = value.filter(
+    (entry) => entry && typeof entry === 'object' && FAMILIES[entry.family] && typeof entry.moveName === 'string' && entry.moveName,
+  );
+  if (kept.length !== value.length) {
+    console.warn(`Swingo skipped ${value.length - kept.length} saved entries that were missing a dance family or move name.`);
+  }
+  return kept.map((entry, index) => ({
+    ...entry,
+    id: typeof entry.id === 'string' && entry.id ? entry.id : `restored-${index}`,
+    status: STATUSES[entry.status] ? entry.status : 'practiced',
+    mood: moodKeys(entry.mood),
+    note: typeof entry.note === 'string' ? entry.note : '',
+    date: typeof entry.date === 'string' && entry.date ? entry.date : todayStr(),
+  }));
+}
+
+function sanitizeCustomMoves(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (move) => move && typeof move === 'object' && FAMILIES[move.family] && typeof move.name === 'string' && move.name,
+  );
+}
+
+function sanitizeMoveReferences(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, list]) => [
+        key,
+        (Array.isArray(list) ? list : [])
+          .filter((item) => item && typeof item === 'object' && normalizeReferenceUrl(String(item.url || '')))
+          .slice(0, MAX_REFERENCES_PER_MOVE)
+          .map((item, index) => ({ ...item, id: item.id || `ref-restored-${key}-${index}` })),
+      ])
+      .filter(([, list]) => list.length),
+  );
+}
+
 function aggregateEntries(entries) {
   const groups = new Map();
   entries.forEach((entry) => {
@@ -364,13 +444,8 @@ function aggregateEntries(entries) {
 }
 
 function App() {
-  const storedSetup = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {};
-    } catch {
-      return {};
-    }
-  }, []);
+  const storedSetup = useMemo(readStoredState, []);
+  const [storageError, setStorageError] = useState(null);
   const [companionPreset, setCompanionPreset] = useState(
     COMPANION_PRESETS[storedSetup.companionPreset] ? storedSetup.companionPreset : '',
   );
@@ -378,29 +453,11 @@ function App() {
   const [view, setView] = useState(() => (storedSetup.inviteAccepted && COMPANION_PRESETS[storedSetup.companionPreset] ? 'journal' : 'setup'));
   const [step, setStep] = useState(0);
   const [entries, setEntries] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      return stored?.entries?.length ? stored.entries : seedEntries();
-    } catch {
-      return seedEntries();
-    }
+    const restored = sanitizeEntries(storedSetup.entries);
+    return restored.length ? restored : seedEntries();
   });
-  const [customMoves, setCustomMoves] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      return stored?.customMoves || [];
-    } catch {
-      return [];
-    }
-  });
-  const [moveReferences, setMoveReferences] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      return stored?.moveReferences || {};
-    } catch {
-      return {};
-    }
-  });
+  const [customMoves, setCustomMoves] = useState(() => sanitizeCustomMoves(storedSetup.customMoves));
+  const [moveReferences, setMoveReferences] = useState(() => sanitizeMoveReferences(storedSetup.moveReferences));
   const [checkin, setCheckin] = useState(freshCheckin);
   const [moveSearch, setMoveSearch] = useState('');
   const [bankSearch, setBankSearch] = useState('');
@@ -414,7 +471,7 @@ function App() {
   const [customName, setCustomName] = useState('');
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, customMoves, moveReferences, companionPreset, inviteAccepted }));
+    setStorageError(writeStoredState({ entries, customMoves, moveReferences, companionPreset, inviteAccepted }));
   }, [entries, customMoves, moveReferences, companionPreset, inviteAccepted]);
 
   useEffect(() => {
@@ -464,7 +521,11 @@ function App() {
   }
 
   function saveCheckin() {
-    if (!checkin.family || !checkin.moveName) return;
+    if (!checkin.family || !checkin.moveName) {
+      console.error('Swingo tried to save a check-in without a dance family or move name.', checkin);
+      setStep(1);
+      return;
+    }
     const now = new Date();
     const pad = (value) => String(value).padStart(2, '0');
     const draftReferenceUrls = (Array.isArray(checkin.referenceUrls) ? checkin.referenceUrls : [checkin.referenceUrl || ''])
@@ -478,7 +539,7 @@ function App() {
       time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
       status: checkin.status || 'first_learned',
       mood: moodKeys(checkin.mood),
-      note: checkin.note.trim(),
+      note: String(checkin.note || '').trim(),
       referenceUrls: [],
       referenceUrl: '',
     };
@@ -557,6 +618,11 @@ function App() {
   return (
     <main className="swingo-stage">
       <section className="app-shell" aria-label="Swingo app">
+        {storageError && (
+          <p className="storage-warning" role="status">
+            This browser is blocking saved data, so new entries will disappear when you close the tab.
+          </p>
+        )}
         <div className="app-scroll">
           {view === 'setup' && <SetupScreen {...context} />}
           {view === 'journal' && <JournalScreen {...context} />}
@@ -737,8 +803,8 @@ function StatPill({ tone, value, label }) {
 }
 
 function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
-  const family = FAMILIES[entry.family];
-  const status = STATUSES[entry.status];
+  const family = familyOf(entry.family);
+  const status = statusOf(entry.status);
   const moods = moodList(entry.mood);
   const menuOpen = openMenuId === entry.id;
 
@@ -870,10 +936,10 @@ function MoveStep({
   setCustomName,
   selectMove,
 }) {
-  const familyColor = checkin.family ? FAMILIES[checkin.family].color : '#E7B44C';
+  const familyColor = checkin.family ? familyOf(checkin.family).color : '#E7B44C';
   const pool = useMemo(() => {
     const base = checkin.family
-      ? TAXONOMY[checkin.family].map((name) => ({ name, family: checkin.family }))
+      ? (TAXONOMY[checkin.family] || []).map((name) => ({ name, family: checkin.family }))
       : Object.entries(TAXONOMY).flatMap(([family, moves]) => moves.map((name) => ({ name, family })));
     const custom = customMoves
       .filter((move) => !checkin.family || move.family === checkin.family)
@@ -894,7 +960,7 @@ function MoveStep({
 
   return (
     <div className="screen check-screen">
-      <StepHeader title={checkin.family ? FAMILIES[checkin.family].label : 'All moves'} color={familyColor} progress="46%" onBack={goBack} />
+      <StepHeader title={checkin.family ? familyOf(checkin.family).label : 'All moves'} color={familyColor} progress="46%" onBack={goBack} />
       <h1 className="move-title">Which move did you learn or practice?</h1>
       <label className="search-field">
         <input value={moveSearch} onChange={(event) => setMoveSearch(event.target.value)} placeholder="Search a move…" />
@@ -908,7 +974,7 @@ function MoveStep({
               type="button"
               className={selected ? 'selected' : ''}
               key={`${move.family}-${move.name}`}
-              style={{ '--family-color': FAMILIES[move.family].color }}
+              style={{ '--family-color': familyOf(move.family).color }}
               onClick={() => selectMove(move.name, move.family)}
             >
               {move.name}
@@ -931,7 +997,7 @@ function MoveStep({
 }
 
 function StatusStep({ checkin, setCheckin, setStep, entries, goBack }) {
-  const color = FAMILIES[checkin.family].color;
+  const color = familyOf(checkin.family).color;
   const priorList = entries.filter((entry) => entry.family === checkin.family && entry.moveName === checkin.moveName);
   const priorFirst = priorList.length ? fmt(priorList.map((entry) => entry.date).toSorted()[0]).medium : '';
 
@@ -1138,8 +1204,8 @@ function OptionalField({ icon, value, placeholder, onChange }) {
 }
 
 function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin, companionPreset, setDetailKey, setDetailFrom }) {
-  const family = FAMILIES[checkin.family] || FAMILIES.lindy;
-  const status = STATUSES[checkin.status || 'first_learned'];
+  const family = familyOf(checkin.family);
+  const status = statusOf(checkin.status || 'first_learned');
   const moods = moodList(checkin.mood);
   const companionState = companionStateFromMoods(checkin.mood);
   const successTone = companionSuccessTone(companionState);
@@ -1406,7 +1472,7 @@ function PracticeLane({ title, subtitle, rows, onOpen }) {
         <p>{subtitle}</p>
       </div>
       {rows.length ? rows.map((row) => (
-        <button type="button" key={row.key} onClick={() => onOpen(row)} style={{ '--family-color': FAMILIES[row.family].color }}>
+        <button type="button" key={row.key} onClick={() => onOpen(row)} style={{ '--family-color': familyOf(row.family).color }}>
           <Sticker family={row.family} moveName={row.moveName} />
           <span>
             <strong>{row.moveName}</strong>
@@ -1419,7 +1485,7 @@ function PracticeLane({ title, subtitle, rows, onOpen }) {
 }
 
 function MoveBankCard({ row, onOpen }) {
-  const family = FAMILIES[row.family];
+  const family = familyOf(row.family);
   const mood = moodList(row.mood)[0];
   return (
     <button type="button" className="bank-card" onClick={onOpen}>
@@ -1430,7 +1496,7 @@ function MoveBankCard({ row, onOpen }) {
       </span>
       <i style={{ color: mood?.color || family.color }}>
         <strong>{row.logs} {row.logs === 1 ? 'log' : 'logs'}</strong>
-        <small>{STATUSES[row.latestStatus].short}</small>
+        <small>{statusOf(row.latestStatus).short}</small>
       </i>
     </button>
   );
@@ -1439,7 +1505,7 @@ function MoveBankCard({ row, onOpen }) {
 function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack, moveReferences, companionPreset }) {
   const detail = bank.find((row) => row.key === detailKey) || bank[0];
   if (!detail) return null;
-  const family = FAMILIES[detail.family];
+  const family = familyOf(detail.family);
   const mood = moodList(detail.mood)[0];
   const references = moveReferences[detail.key] || [];
   const latestEntry = detail.list[0];
@@ -1460,7 +1526,7 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
       <div className="summary-panel">
         <SummaryCell label="First learned" value={fmt(detail.firstDate).medium} />
         <SummaryCell label="Total logs" value={`${detail.logs} ${detail.logs === 1 ? 'time' : 'times'}`} />
-        <SummaryCell label="Latest" value={STATUSES[detail.latestStatus].short} />
+        <SummaryCell label="Latest" value={statusOf(detail.latestStatus).short} />
         <SummaryCell label="Top mood" value={mood?.label || '—'} color={mood?.color} />
       </div>
       <section className="detail-companion">
@@ -1496,11 +1562,11 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
       <h2 className="list-label">History</h2>
       <div className="timeline">
         {detail.list.map((entry) => (
-          <article key={entry.id} className="timeline-row" style={{ '--row-color': FAMILIES[entry.family].color }}>
+          <article key={entry.id} className="timeline-row" style={{ '--row-color': familyOf(entry.family).color }}>
             <i />
             <div>
               <small>{fmt(entry.date).medium} · {entry.time}</small>
-              <h3>{STATUSES[entry.status].label}</h3>
+              <h3>{statusOf(entry.status).label}</h3>
               {entry.note && <p>"{entry.note}"</p>}
             </div>
           </article>
@@ -1630,4 +1696,59 @@ function Confetti() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Swingo crashed while rendering.', error, info.componentStack);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <main className="swingo-stage">
+        <section className="app-shell crash-shell" aria-label="Swingo error">
+          <div className="brand-script">Swingo</div>
+          <h1>Something went wrong.</h1>
+          <p>Your saved entries are still in this browser. Reloading usually fixes it.</p>
+          <p className="crash-detail">{this.state.error.message}</p>
+          <button className="gold-cta centered" type="button" onClick={() => window.location.reload()}>
+            Reload Swingo
+          </button>
+          <button
+            className="plain-btn"
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.removeItem(STORAGE_KEY);
+              } catch (error) {
+                console.error('Swingo could not clear saved data.', error);
+              }
+              window.location.reload();
+            }}
+          >
+            Reset saved data and reload
+          </button>
+        </section>
+      </main>
+    );
+  }
+}
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Swingo could not start: no #root element in the page.');
+}
+
+createRoot(rootElement).render(
+  <AppErrorBoundary>
+    <App />
+  </AppErrorBoundary>,
+);
