@@ -1,43 +1,37 @@
-import { chromium } from 'playwright';
+import { checkinFlow, openApp, outputDir } from './qa-harness.mjs';
 
-const baseUrl = 'http://127.0.0.1:5173/';
-const outDir = '/Users/estherwang/Documents/Swingo';
+const outDir = await outputDir();
+const { browser, page, consoleMessages } = await openApp({ collectConsole: true });
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 430, height: 900 }, deviceScaleFactor: 1 });
-const consoleMessages = [];
+const screenshots = [];
+async function capture(name) {
+  await page.screenshot({ path: `${outDir}/${name}`, fullPage: true });
+  screenshots.push(name);
+}
 
-page.on('console', (message) => {
-  consoleMessages.push(`${message.type()}: ${message.text()}`);
-});
+await capture('swingo-mobile-journal.png');
 
-page.on('pageerror', (error) => {
-  consoleMessages.push(`pageerror: ${error.message}`);
-});
+await checkinFlow.start(page);
+await capture('swingo-mobile-checkin.png');
 
-await page.goto(baseUrl, { waitUntil: 'networkidle' });
-await page.screenshot({ path: `${outDir}/swingo-mobile-journal.png`, fullPage: true });
+await checkinFlow.chooseFamily(page);
+await checkinFlow.searchMove(page, 'Shorty');
+await capture('swingo-mobile-move-search.png');
 
-await page.getByRole('button', { name: /Check in today's dance/i }).click();
-await page.screenshot({ path: `${outDir}/swingo-mobile-checkin.png`, fullPage: true });
+await checkinFlow.chooseMove(page);
+await checkinFlow.continueToMood(page);
+await capture('swingo-mobile-mood.png');
 
-await page.getByRole('button', { name: /Solo Jazz/i }).click();
-await page.getByPlaceholder('Search a move…').fill('Shorty');
-await page.screenshot({ path: `${outDir}/swingo-mobile-move-search.png`, fullPage: true });
+await checkinFlow.save(page);
+await capture('swingo-mobile-success.png');
 
-await page.getByRole('button', { name: /Shorty George/i }).click();
-await page.getByRole('button', { name: /Next/i }).click();
-await page.getByText('How did this learning feel?').waitFor();
-await page.screenshot({ path: `${outDir}/swingo-mobile-mood.png`, fullPage: true });
-await page.getByRole('button', { name: /Save to my dance story/i }).click();
-await page.screenshot({ path: `${outDir}/swingo-mobile-success.png`, fullPage: true });
-
-await page.getByRole('button', { name: /Go to Move Bank/i }).click();
+await page.getByRole('button', { name: /Back to journal/i }).click();
+await page.getByRole('button', { name: /^Moves$/i }).click();
 await page.getByRole('heading', { name: 'Move Bank' }).waitFor();
-await page.screenshot({ path: `${outDir}/swingo-mobile-bank.png`, fullPage: true });
+await capture('swingo-mobile-bank.png');
 
 await page.setViewportSize({ width: 1280, height: 900 });
-await page.screenshot({ path: `${outDir}/swingo-desktop.png`, fullPage: true });
+await capture('swingo-desktop.png');
 
 const bodyText = await page.locator('body').innerText();
 await browser.close();
@@ -47,15 +41,7 @@ console.log(
     {
       consoleMessages,
       hasSavedMove: bodyText.includes('Shorty George'),
-      screenshots: [
-        'swingo-mobile-journal.png',
-        'swingo-mobile-checkin.png',
-        'swingo-mobile-move-search.png',
-        'swingo-mobile-mood.png',
-        'swingo-mobile-success.png',
-        'swingo-mobile-bank.png',
-        'swingo-desktop.png',
-      ],
+      screenshots,
     },
     null,
     2,

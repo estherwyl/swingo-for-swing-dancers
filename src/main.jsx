@@ -18,218 +18,42 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react';
+import {
+  COMPANION_ASSET_VERSION,
+  COMPANION_GENDERS,
+  COMPANION_PRESETS,
+  COMPANION_STYLES,
+  DEFAULT_COMPANION_PRESET,
+  companionChoicesFromPreset,
+  companionCopy,
+  companionPresetFromChoices,
+  companionStateFromMoods,
+  companionSuccessTone,
+} from './lib/companions.js';
+import { daysSince, fmt, sortByRecency, timeStr, todayStr } from './lib/dates.js';
+import { MOODS, MOOD_ORDER, moodKeys, moodList, topMoodKey } from './lib/moods.js';
+import {
+  DEFAULT_FAMILY_COLOR,
+  FAMILIES,
+  STATUSES,
+  STATUS_ORDER,
+  TAXONOMY,
+  aggregateEntries,
+  entryMoveKey,
+  familyColor,
+  iconSrc,
+  moveKey,
+} from './lib/moves.js';
+import {
+  MAX_REFERENCES_PER_MOVE,
+  normalizeReferenceUrl,
+  normalizedReferenceUrls,
+  referenceDisplayName,
+  referenceDrafts,
+} from './lib/references.js';
+import { readStoredState, writeStoredState } from './lib/storage.js';
+import { pluralize } from './lib/text.js';
 import './styles.css';
-
-const STORAGE_KEY = 'swingo_v2';
-const COMPANION_ASSET_VERSION = '2026-08-07-white-tennis-shoes';
-const MAX_REFERENCES_PER_MOVE = 3;
-
-const COMPANION_PRESETS = {
-  'dressed-up-feminine': {
-    label: 'Vintage feminine',
-    sub: 'Red dress, polished shoes, festival sparkle',
-    gender: 'feminine',
-    style: 'vintage',
-  },
-  'dressed-up-masculine': {
-    label: 'Vintage masculine',
-    sub: 'Bow tie, suspenders, Savoy polish',
-    gender: 'masculine',
-    style: 'vintage',
-  },
-  'casual-feminine': {
-    label: 'Casual feminine',
-    sub: 'Oversized top, sneakers, comfort-first',
-    gender: 'feminine',
-    style: 'casual',
-  },
-  'casual-masculine': {
-    label: 'Casual masculine',
-    sub: 'Relaxed tee, joggers, easy social energy',
-    gender: 'masculine',
-    style: 'casual',
-  },
-};
-
-const COMPANION_ORDER = ['dressed-up-feminine', 'dressed-up-masculine', 'casual-feminine', 'casual-masculine'];
-const COMPANION_GENDERS = [
-  ['feminine', 'Female dancer'],
-  ['masculine', 'Male dancer'],
-];
-const COMPANION_STYLES = [
-  ['vintage', 'Vintage'],
-  ['casual', 'Casual'],
-];
-
-const FAMILIES = {
-  lindy: { label: 'Lindy Hop', color: '#E7B44C', dark: '#231708' },
-  solo: { label: 'Solo Jazz', color: '#6FBF92', dark: '#08160E' },
-  charleston: { label: 'Charleston', color: '#E8705C', dark: '#230B08' },
-};
-
-const STATUSES = {
-  first_learned: { label: 'Learned for the first time', short: 'First time', statement: 'I learned' },
-  learned_again: { label: 'Learned again', short: 'Learned again', statement: 'I learned again' },
-  practiced: { label: 'Practiced', short: 'Practiced', statement: 'I practiced' },
-  used_in_social: { label: 'Used in social', short: 'Social', statement: 'I used in social' },
-  performed: { label: 'Performed', short: 'Performed', statement: 'I performed' },
-};
-
-const STATUS_ORDER = ['first_learned', 'learned_again', 'practiced', 'used_in_social', 'performed'];
-
-const MOODS = {
-  proud: { label: 'Proud', color: '#E7B44C', emoji: '🥹' },
-  excited: { label: 'Excited', color: '#E86C58', emoji: '🥳' },
-  flowing: { label: 'Flowing', color: '#6FBF92', emoji: '😌' },
-  curious: { label: 'Curious', color: '#6FA8CF', emoji: '🤔' },
-  challenged: { label: 'Challenged', color: '#C46A7C', emoji: '😤' },
-  angry: { label: 'Angry', color: '#D05744', emoji: '😠' },
-  confused: { label: 'Confused', color: '#9B8BC4', emoji: '😵‍💫' },
-  frustrated: { label: 'Frustrated', color: '#D9704A', emoji: '😣' },
-  inspired: { label: 'Inspired', color: '#E7C15A', emoji: '🤩' },
-};
-
-const MOOD_ORDER = ['proud', 'excited', 'flowing', 'inspired', 'challenged', 'angry', 'confused', 'frustrated'];
-const MOOD_COMPANION_STATE = {
-  proud: 'celebrate',
-  excited: 'celebrate',
-  flowing: 'reflect',
-  inspired: 'reflect',
-  challenged: 'fired-up',
-  angry: 'fired-up',
-  confused: 'disappointed',
-  frustrated: 'disappointed',
-  curious: 'reflect',
-};
-
-function moodKeys(value) {
-  if (Array.isArray(value)) return value.filter((key) => MOODS[key]);
-  return value && MOODS[value] ? [value] : [];
-}
-
-function moodList(value) {
-  return moodKeys(value).map((key) => MOODS[key]);
-}
-
-function companionStateFromMoods(value) {
-  const [key] = moodKeys(value);
-  return MOOD_COMPANION_STATE[key] || 'reflect';
-}
-
-function companionPresetFromChoices(gender, style) {
-  return COMPANION_ORDER.find((preset) => {
-    const item = COMPANION_PRESETS[preset];
-    return item.gender === gender && item.style === style;
-  }) || '';
-}
-
-function companionChoicesFromPreset(preset) {
-  const item = COMPANION_PRESETS[preset];
-  return {
-    gender: item?.gender || '',
-    style: item?.style || '',
-  };
-}
-
-const TAXONOMY = {
-  lindy: [
-    '6-count basic',
-    '8-count basic',
-    'Around the World',
-    'Barrel Roll',
-    'Lindy Circle',
-    'Change of places',
-    'Circle',
-    'Drags',
-    'Flip-flops',
-    'Frisbee',
-    'Glide to the side, scoots',
-    'Gliding',
-    'Jig Kicks',
-    'Windmill',
-    'Minnie Dip',
-    'Points',
-    'Pretzel',
-    'Promenade',
-    "Sailor's",
-    'Send Out',
-    'Side Pass',
-    "Skater's",
-    "Reverse Skater's",
-    'Sugar Push',
-    'Swingout',
-    'Lindy turn',
-    'Swivels',
-    'Tangos',
-    'Texas Tommy',
-    'Tuck Turn',
-    'Wheel',
-  ],
-  solo: [
-    'Apple Jacks',
-    'Boogie Back',
-    'Boogie Forward',
-    'Breeze in the Knees',
-    'Camel Walks',
-    'Chugs',
-    'Fall off the Log',
-    'Hangman',
-    'Heel Toe',
-    'James Brown',
-    'Low-downs',
-    'Mooches',
-    'Over The Top',
-    'Pimp Walk',
-    'Rocks, Hallelujahs',
-    'Shorty George',
-    'Slip Slops',
-    'Suzy Qs',
-    'Tacky Annies',
-    'Tangos',
-    'Tick Tocks',
-    'Trenches',
-    'Truckin',
-  ],
-  charleston: [
-    'Side by side',
-    'Slide back',
-    'Fishtail',
-    'Kick through',
-    'Hand to hand',
-    'Airplane',
-    'Skip up',
-    "Johnnie's drop",
-    'Tandem',
-    'Windscreen wiper',
-    'Butterfly exit',
-  ],
-};
-
-function slug(value) {
-  return String(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
-
-const ICON_SET = new Set(
-  Object.entries(TAXONOMY).flatMap(([family, moves]) =>
-    moves
-      .filter((move) => !(family === 'lindy' && move === 'Tangos'))
-      .map((move) => `${family}/${slug(move)}`),
-  ),
-);
-
-function iconSrc(family, moveName) {
-  const key = `${family}/${slug(moveName)}`;
-  return ICON_SET.has(key) ? `/assets/moves/${key}.png` : '';
-}
-
-function todayStr() {
-  const date = new Date();
-  const pad = (value) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 function freshCheckin() {
   return {
@@ -244,54 +68,6 @@ function freshCheckin() {
     teacher: '',
     location: '',
   };
-}
-
-function fmt(dateStr) {
-  const [year, month, day] = (dateStr || '2026-01-01').split('-').map(Number);
-  const date = new Date(year, (month || 1) - 1, day || 1);
-  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const monthName = months[(month || 1) - 1];
-  return {
-    md: `${monthName} ${day}`,
-    medium: `${monthName} ${day}, ${year}`,
-    full: `${weekdays[date.getDay()]} ${monthName} ${day}, ${year}`,
-  };
-}
-
-function sortKey(entry) {
-  return `${entry.date}T${entry.time || '00:00'}`;
-}
-
-function daysSince(dateStr) {
-  const [year, month, day] = (dateStr || todayStr()).split('-').map(Number);
-  const then = new Date(year, (month || 1) - 1, day || 1);
-  const now = new Date();
-  return Math.max(0, Math.floor((now - then) / 86400000));
-}
-
-function moveKey(family, moveName) {
-  return `${family}|${moveName}`;
-}
-
-function normalizeReferenceUrl(value) {
-  const raw = value.trim();
-  if (!raw) return '';
-  try {
-    const url = new URL(raw);
-    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
-  } catch {
-    return '';
-  }
-}
-
-function referenceDisplayName(url) {
-  try {
-    const { hostname } = new URL(url);
-    return hostname.replace(/^www\./, '');
-  } catch {
-    return 'Open link';
-  }
 }
 
 function seedEntries() {
@@ -331,76 +107,17 @@ function seedEntries() {
   }));
 }
 
-function aggregateEntries(entries) {
-  const groups = new Map();
-  entries.forEach((entry) => {
-    const key = `${entry.family}|${entry.moveName}`;
-    groups.set(key, [...(groups.get(key) || []), entry]);
-  });
-
-  return Array.from(groups.entries()).map(([key, list]) => {
-    const sorted = list.toSorted((a, b) => sortKey(b).localeCompare(sortKey(a)));
-    const firstDate = list.map((entry) => entry.date).toSorted()[0];
-    const moodTally = new Map();
-    sorted.forEach((entry) => {
-      moodKeys(entry.mood).forEach((mood) => {
-        moodTally.set(mood, (moodTally.get(mood) || 0) + 1);
-      });
-    });
-    const mood = Array.from(moodTally.entries()).toSorted((a, b) => b[1] - a[1])[0]?.[0] || null;
-    return {
-      key,
-      family: sorted[0].family,
-      moveName: sorted[0].moveName,
-      firstDate,
-      logs: sorted.length,
-      latestStatus: sorted[0].status,
-      latestSk: sortKey(sorted[0]),
-      mood,
-      hasSocial: sorted.some((entry) => entry.status === 'used_in_social'),
-      list: sorted,
-    };
-  });
-}
-
 function App() {
-  const storedSetup = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {};
-    } catch {
-      return {};
-    }
-  }, []);
+  const stored = useMemo(readStoredState, []);
   const [companionPreset, setCompanionPreset] = useState(
-    COMPANION_PRESETS[storedSetup.companionPreset] ? storedSetup.companionPreset : '',
+    COMPANION_PRESETS[stored.companionPreset] ? stored.companionPreset : '',
   );
-  const [inviteAccepted, setInviteAccepted] = useState(Boolean(storedSetup.inviteAccepted));
-  const [view, setView] = useState(() => (storedSetup.inviteAccepted && COMPANION_PRESETS[storedSetup.companionPreset] ? 'journal' : 'setup'));
+  const [inviteAccepted, setInviteAccepted] = useState(Boolean(stored.inviteAccepted));
+  const [view, setView] = useState(() => (stored.inviteAccepted && COMPANION_PRESETS[stored.companionPreset] ? 'journal' : 'setup'));
   const [step, setStep] = useState(0);
-  const [entries, setEntries] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      return stored?.entries?.length ? stored.entries : seedEntries();
-    } catch {
-      return seedEntries();
-    }
-  });
-  const [customMoves, setCustomMoves] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      return stored?.customMoves || [];
-    } catch {
-      return [];
-    }
-  });
-  const [moveReferences, setMoveReferences] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      return stored?.moveReferences || {};
-    } catch {
-      return {};
-    }
-  });
+  const [entries, setEntries] = useState(() => (stored.entries?.length ? stored.entries : seedEntries()));
+  const [customMoves, setCustomMoves] = useState(() => stored.customMoves || []);
+  const [moveReferences, setMoveReferences] = useState(() => stored.moveReferences || {});
   const [checkin, setCheckin] = useState(freshCheckin);
   const [moveSearch, setMoveSearch] = useState('');
   const [bankSearch, setBankSearch] = useState('');
@@ -414,7 +131,7 @@ function App() {
   const [customName, setCustomName] = useState('');
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, customMoves, moveReferences, companionPreset, inviteAccepted }));
+    writeStoredState({ entries, customMoves, moveReferences, companionPreset, inviteAccepted });
   }, [entries, customMoves, moveReferences, companionPreset, inviteAccepted]);
 
   useEffect(() => {
@@ -422,7 +139,7 @@ function App() {
   }, [view, step, detailKey]);
 
   const bank = useMemo(() => aggregateEntries(entries), [entries]);
-  const entriesSorted = useMemo(() => entries.toSorted((a, b) => sortKey(b).localeCompare(sortKey(a))), [entries]);
+  const entriesSorted = useMemo(() => sortByRecency(entries), [entries]);
 
   function startCheckin(initial = freshCheckin(), nextStep = 0) {
     setView('checkin');
@@ -466,16 +183,12 @@ function App() {
   function saveCheckin() {
     if (!checkin.family || !checkin.moveName) return;
     const now = new Date();
-    const pad = (value) => String(value).padStart(2, '0');
-    const draftReferenceUrls = (Array.isArray(checkin.referenceUrls) ? checkin.referenceUrls : [checkin.referenceUrl || ''])
-      .map((url) => normalizeReferenceUrl(url || ''))
-      .filter(Boolean);
-    const referenceUrls = [...new Set(draftReferenceUrls)];
+    const referenceUrls = normalizedReferenceUrls(checkin);
     const entry = {
       id: `entry-${Date.now()}`,
       ...checkin,
-      date: checkin.date || todayStr(),
-      time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      date: checkin.date || todayStr(now),
+      time: timeStr(now),
       status: checkin.status || 'first_learned',
       mood: moodKeys(checkin.mood),
       note: checkin.note.trim(),
@@ -593,23 +306,11 @@ function SetupScreen({ companionPreset, setCompanionPreset, setInviteAccepted, s
       </p>
       <div className="setup-choice-block">
         <p>I dance as</p>
-        <div className="setup-segment">
-          {COMPANION_GENDERS.map(([key, label]) => (
-            <button type="button" className={gender === key ? 'selected' : ''} key={key} onClick={() => setGender(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <OptionGroup className="setup-segment" options={COMPANION_GENDERS} selected={gender} onSelect={setGender} />
       </div>
       <div className="setup-choice-block">
         <p>My dance vibe is</p>
-        <div className="setup-segment">
-          {COMPANION_STYLES.map(([key, label]) => (
-            <button type="button" className={style === key ? 'selected' : ''} key={key} onClick={() => setStyle(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <OptionGroup className="setup-segment" options={COMPANION_STYLES} selected={style} onSelect={setStyle} />
       </div>
       {selectedPreset && (
         <section className="setup-preview">
@@ -646,7 +347,7 @@ function JournalScreen({
   const hasEntries = entries.length > 0;
 
   function openDetail(entry) {
-    setDetailKey(`${entry.family}|${entry.moveName}`);
+    setDetailKey(entryMoveKey(entry));
     setDetailFrom('journal');
     setOpenMenuId(null);
     setView('detail');
@@ -686,7 +387,7 @@ function JournalScreen({
       </h1>
 
       <section className="companion-prompt">
-        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state="reflect" size="home" />
+        <DancerCompanion preset={companionPreset} state="reflect" size="home" />
         <div>
           <p>What do you want to remember from today's dance?</p>
           <span>Your dance self is ready when you are.</span>
@@ -726,6 +427,28 @@ function JournalScreen({
   );
 }
 
+function OptionGroup({ options, selected, onSelect, className, label }) {
+  return (
+    <div className={className} aria-label={label}>
+      {options.map(([key, optionLabel]) => (
+        <button type="button" className={selected === key ? 'selected' : ''} key={key} onClick={() => onSelect(key)}>
+          {optionLabel}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MoodEmojis({ value, className }) {
+  const moods = moodList(value);
+  if (!moods.length) return null;
+  return (
+    <span className={className} aria-label={moods.map((mood) => mood.label).join(', ')}>
+      <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span>
+    </span>
+  );
+}
+
 function StatPill({ tone, value, label }) {
   return (
     <div className="stat-pill" data-tone={tone}>
@@ -739,7 +462,6 @@ function StatPill({ tone, value, label }) {
 function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
   const family = FAMILIES[entry.family];
   const status = STATUSES[entry.status];
-  const moods = moodList(entry.mood);
   const menuOpen = openMenuId === entry.id;
 
   return (
@@ -763,11 +485,7 @@ function JournalCard({ entry, openMenuId, setOpenMenuId, onOpen, onDelete }) {
         <p className="card-meta">
           {family.label} · {status.short}
         </p>
-        {moods.length > 0 && (
-          <span className="mood-chip" aria-label={moods.map((mood) => mood.label).join(', ')}>
-            <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span>
-          </span>
-        )}
+        <MoodEmojis value={entry.mood} className="mood-chip" />
         {entry.note && <p className="note-preview">"{entry.note}"</p>}
       </div>
       <button type="button" className="card-sticker" onClick={onOpen} aria-label={`Open ${entry.moveName}`}>
@@ -791,7 +509,7 @@ function CheckinScreen(props) {
   return <SuccessStep {...props} />;
 }
 
-function StepHeader({ title, color = '#E7B44C', progress, onBack }) {
+function StepHeader({ title, color = DEFAULT_FAMILY_COLOR, progress, onBack }) {
   return (
     <>
       <div className="step-header">
@@ -870,7 +588,6 @@ function MoveStep({
   setCustomName,
   selectMove,
 }) {
-  const familyColor = checkin.family ? FAMILIES[checkin.family].color : '#E7B44C';
   const pool = useMemo(() => {
     const base = checkin.family
       ? TAXONOMY[checkin.family].map((name) => ({ name, family: checkin.family }))
@@ -894,7 +611,12 @@ function MoveStep({
 
   return (
     <div className="screen check-screen">
-      <StepHeader title={checkin.family ? FAMILIES[checkin.family].label : 'All moves'} color={familyColor} progress="46%" onBack={goBack} />
+      <StepHeader
+        title={checkin.family ? FAMILIES[checkin.family].label : 'All moves'}
+        color={familyColor(checkin.family)}
+        progress="46%"
+        onBack={goBack}
+      />
       <h1 className="move-title">Which move did you learn or practice?</h1>
       <label className="search-field">
         <input value={moveSearch} onChange={(event) => setMoveSearch(event.target.value)} placeholder="Search a move…" />
@@ -908,7 +630,7 @@ function MoveStep({
               type="button"
               className={selected ? 'selected' : ''}
               key={`${move.family}-${move.name}`}
-              style={{ '--family-color': FAMILIES[move.family].color }}
+              style={{ '--family-color': familyColor(move.family) }}
               onClick={() => selectMove(move.name, move.family)}
             >
               {move.name}
@@ -931,7 +653,7 @@ function MoveStep({
 }
 
 function StatusStep({ checkin, setCheckin, setStep, entries, goBack }) {
-  const color = FAMILIES[checkin.family].color;
+  const color = familyColor(checkin.family);
   const priorList = entries.filter((entry) => entry.family === checkin.family && entry.moveName === checkin.moveName);
   const priorFirst = priorList.length ? fmt(priorList.map((entry) => entry.date).toSorted()[0]).medium : '';
 
@@ -969,8 +691,7 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, m
   const companionState = companionStateFromMoods(checkin.mood);
   const references = moveReferences[moveKey(checkin.family, checkin.moveName)] || [];
   const availableReferenceSlots = Math.max(0, MAX_REFERENCES_PER_MOVE - references.length);
-  const draftReferenceUrls = (Array.isArray(checkin.referenceUrls) ? checkin.referenceUrls : [checkin.referenceUrl || ''])
-    .slice(0, Math.max(1, availableReferenceSlots));
+  const draftReferenceUrls = referenceDrafts(checkin).slice(0, Math.max(1, availableReferenceSlots));
   const visibleReferenceUrls = availableReferenceSlots > 0 ? (draftReferenceUrls.length ? draftReferenceUrls : ['']) : [];
   const hasReferenceDraft = visibleReferenceUrls.some((url) => url.trim());
   const invalidReferenceIndexes = new Set(
@@ -988,7 +709,7 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, m
 
   function updateReferenceUrl(index, value) {
     setCheckin((current) => {
-      const currentUrls = Array.isArray(current.referenceUrls) ? [...current.referenceUrls] : [current.referenceUrl || ''];
+      const currentUrls = [...referenceDrafts(current)];
       currentUrls[index] = value;
       return { ...current, referenceUrls: currentUrls };
     });
@@ -996,7 +717,7 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, m
 
   function clearReferenceUrl(index) {
     setCheckin((current) => {
-      const currentUrls = Array.isArray(current.referenceUrls) ? [...current.referenceUrls] : [current.referenceUrl || ''];
+      const currentUrls = [...referenceDrafts(current)];
       if (currentUrls.length === 1) currentUrls[index] = '';
       else currentUrls.splice(index, 1);
       return { ...current, referenceUrls: currentUrls.length ? currentUrls : [''] };
@@ -1006,8 +727,7 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, m
   function addReferenceField() {
     if (!canAddReferenceField) return;
     setCheckin((current) => {
-      const currentUrls = Array.isArray(current.referenceUrls) ? current.referenceUrls : [current.referenceUrl || ''];
-      return { ...current, referenceUrls: [...currentUrls, ''].slice(0, MAX_REFERENCES_PER_MOVE) };
+      return { ...current, referenceUrls: [...referenceDrafts(current), ''].slice(0, MAX_REFERENCES_PER_MOVE) };
     });
   }
 
@@ -1016,7 +736,7 @@ function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, m
       <StepHeader title="Almost there" progress="88%" onBack={goBack} />
       <h1 className="move-title">How did this learning feel?</h1>
       <section className="mood-companion">
-        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state={companionState} size="small" />
+        <DancerCompanion preset={companionPreset} state={companionState} size="small" />
         <p>{companionCopy(companionState)}</p>
       </section>
       <div className="mood-grid">
@@ -1140,7 +860,6 @@ function OptionalField({ icon, value, placeholder, onChange }) {
 function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin, companionPreset, setDetailKey, setDetailFrom }) {
   const family = FAMILIES[checkin.family] || FAMILIES.lindy;
   const status = STATUSES[checkin.status || 'first_learned'];
-  const moods = moodList(checkin.mood);
   const companionState = companionStateFromMoods(checkin.mood);
   const successTone = companionSuccessTone(companionState);
   const savedMoveKey = moveKey(checkin.family, checkin.moveName);
@@ -1153,16 +872,12 @@ function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin, compani
         {successTone.before} <span style={{ color: family.color }}>{checkin.moveName}</span> {successTone.after}
       </h2>
       <div className="success-sticker">
-        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state={companionState} size="success" />
+        <DancerCompanion preset={companionPreset} state={companionState} size="success" />
       </div>
       <p className="companion-reaction">{companionCopy(companionState)}</p>
       <p className="success-sub">
         {family.label} · {status.label}
-        {moods.length > 0 && (
-          <span aria-label={moods.map((mood) => mood.label).join(', ')}>
-            <span aria-hidden="true">{moods.map((mood) => mood.emoji).join(' ')}</span>
-          </span>
-        )}
+        <MoodEmojis value={checkin.mood} />
       </p>
       <p className="success-count"><b>{bank.length}</b> moves collected this year</p>
       <div className="success-actions">
@@ -1189,44 +904,8 @@ function SuccessStep({ checkin, bank, setView, startCheckin, setCheckin, compani
   );
 }
 
-function companionCopy(state) {
-  if (state === 'celebrate') return 'This felt good. Remember what clicked.';
-  if (state === 'fired-up') return 'That anger has information. Save what happened, then come back to yourself.';
-  if (state === 'disappointed') return 'This one did not land the way you hoped. Keep the lesson, not the weight.';
-  return 'Small details become real progress when you remember them.';
-}
-
-function companionSuccessTone(state) {
-  if (state === 'celebrate') {
-    return {
-      title: 'Nice one!',
-      before: '',
-      after: 'is saved as a win in your 2026 dance story.',
-    };
-  }
-  if (state === 'fired-up') {
-    return {
-      title: 'That feeling counts.',
-      before: '',
-      after: 'is saved with the part that made you fired up.',
-    };
-  }
-  if (state === 'disappointed') {
-    return {
-      title: 'Still worth saving.',
-      before: '',
-      after: 'is saved, even though it did not feel how you wanted.',
-    };
-  }
-  return {
-    title: 'Saved for future you.',
-    before: '',
-    after: 'is now part of your 2026 dance story.',
-  };
-}
-
-function DancerCompanion({ preset = 'dressed-up-feminine', state = 'reflect', size = 'medium' }) {
-  const safePreset = COMPANION_PRESETS[preset] ? preset : 'dressed-up-feminine';
+function DancerCompanion({ preset, state = 'reflect', size = 'medium' }) {
+  const safePreset = COMPANION_PRESETS[preset] ? preset : DEFAULT_COMPANION_PRESET;
   const src = `/assets/companions/${safePreset}/${state}.webp?v=${COMPANION_ASSET_VERSION}`;
   return (
     <figure className={`dancer-companion ${size}`} data-state={state}>
@@ -1234,6 +913,22 @@ function DancerCompanion({ preset = 'dressed-up-feminine', state = 'reflect', si
     </figure>
   );
 }
+
+const BANK_MODES = [
+  ['list', 'List'],
+  ['map', 'Map'],
+  ['practice', 'Practice'],
+];
+
+const BANK_FILTERS = [
+  ['all', 'All'],
+  ['lindy', 'Lindy Hop'],
+  ['solo', 'Solo Jazz'],
+  ['charleston', 'Charleston'],
+  ['new', 'New'],
+  ['revisited', 'Revisited'],
+  ['social', 'Used in social'],
+];
 
 function MoveBankScreen({
   bank,
@@ -1275,17 +970,13 @@ function MoveBankScreen({
           <Filter size={18} />
         </button>
       </div>
-      <div className="bank-mode-switch" aria-label="Move Bank view">
-        {[
-          ['list', 'List'],
-          ['map', 'Map'],
-          ['practice', 'Practice'],
-        ].map(([key, label]) => (
-          <button type="button" className={bankMode === key ? 'selected' : ''} key={key} onClick={() => setBankMode(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <OptionGroup
+        className="bank-mode-switch"
+        label="Move Bank view"
+        options={BANK_MODES}
+        selected={bankMode}
+        onSelect={setBankMode}
+      />
       {bank.length > 0 && (
         <div className="family-bubbles">
           {Object.entries(FAMILIES).map(([key, family]) => (
@@ -1320,21 +1011,7 @@ function MoveListView({ filtered, bank, bankSearch, setBankSearch, bankFilter, s
         <input value={bankSearch} onChange={(event) => setBankSearch(event.target.value)} placeholder="Search moves…" />
         <Search size={17} />
       </label>
-      <div className="filter-row">
-        {[
-          ['all', 'All'],
-          ['lindy', 'Lindy Hop'],
-          ['solo', 'Solo Jazz'],
-          ['charleston', 'Charleston'],
-          ['new', 'New'],
-          ['revisited', 'Revisited'],
-          ['social', 'Used in social'],
-        ].map(([key, label]) => (
-          <button type="button" className={bankFilter === key ? 'selected' : ''} key={key} onClick={() => setBankFilter(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <OptionGroup className="filter-row" options={BANK_FILTERS} selected={bankFilter} onSelect={setBankFilter} />
       <h2 className="list-label">{filtered.length === bank.length ? 'All moves' : `${filtered.length} result${filtered.length === 1 ? '' : 's'}`}</h2>
       {filtered.length ? filtered.map((row) => (
         <MoveBankCard key={row.key} row={row} onOpen={() => onOpen(row)} />
@@ -1406,11 +1083,11 @@ function PracticeLane({ title, subtitle, rows, onOpen }) {
         <p>{subtitle}</p>
       </div>
       {rows.length ? rows.map((row) => (
-        <button type="button" key={row.key} onClick={() => onOpen(row)} style={{ '--family-color': FAMILIES[row.family].color }}>
+        <button type="button" key={row.key} onClick={() => onOpen(row)} style={{ '--family-color': familyColor(row.family) }}>
           <Sticker family={row.family} moveName={row.moveName} />
           <span>
             <strong>{row.moveName}</strong>
-            <small>{row.logs} {row.logs === 1 ? 'log' : 'logs'} · latest {fmt(row.latestSk.slice(0, 10)).md}</small>
+            <small>{pluralize(row.logs, 'log')} · latest {fmt(row.latestSk.slice(0, 10)).md}</small>
           </span>
         </button>
       )) : <p className="empty-copy">Nothing here yet.</p>}
@@ -1429,7 +1106,7 @@ function MoveBankCard({ row, onOpen }) {
         <small>{family.label} · First learned {fmt(row.firstDate).md}</small>
       </span>
       <i style={{ color: mood?.color || family.color }}>
-        <strong>{row.logs} {row.logs === 1 ? 'log' : 'logs'}</strong>
+        <strong>{pluralize(row.logs, 'log')}</strong>
         <small>{STATUSES[row.latestStatus].short}</small>
       </i>
     </button>
@@ -1459,12 +1136,12 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
       </div>
       <div className="summary-panel">
         <SummaryCell label="First learned" value={fmt(detail.firstDate).medium} />
-        <SummaryCell label="Total logs" value={`${detail.logs} ${detail.logs === 1 ? 'time' : 'times'}`} />
+        <SummaryCell label="Total logs" value={pluralize(detail.logs, 'time')} />
         <SummaryCell label="Latest" value={STATUSES[detail.latestStatus].short} />
         <SummaryCell label="Top mood" value={mood?.label || '—'} color={mood?.color} />
       </div>
       <section className="detail-companion">
-        <DancerCompanion preset={companionPreset || 'dressed-up-feminine'} state={detailCompanionState} size="small" />
+        <DancerCompanion preset={companionPreset} state={detailCompanionState} size="small" />
         <div>
           <strong>{companionCopy(detailCompanionState)}</strong>
           <span>
@@ -1496,7 +1173,7 @@ function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, 
       <h2 className="list-label">History</h2>
       <div className="timeline">
         {detail.list.map((entry) => (
-          <article key={entry.id} className="timeline-row" style={{ '--row-color': FAMILIES[entry.family].color }}>
+          <article key={entry.id} className="timeline-row" style={{ '--row-color': familyColor(entry.family) }}>
             <i />
             <div>
               <small>{fmt(entry.date).medium} · {entry.time}</small>
@@ -1536,14 +1213,8 @@ function WrappedScreen({ entries, bank, startCheckin }) {
     const familyEntries = (family) => entries.filter((entry) => entry.family === family).length;
     const topFamily = Object.keys(FAMILIES).toSorted((a, b) => familyEntries(b) - familyEntries(a))[0];
     const revisited = [...bank].toSorted((a, b) => b.logs - a.logs)[0];
-    const moodTally = new Map();
-    entries.forEach((entry) => {
-      moodKeys(entry.mood).forEach((mood) => {
-        moodTally.set(mood, (moodTally.get(mood) || 0) + 1);
-      });
-    });
-    const topMood = Array.from(moodTally.entries()).toSorted((a, b) => b[1] - a[1])[0]?.[0];
-    const latest = entries.toSorted((a, b) => sortKey(b).localeCompare(sortKey(a)))[0];
+    const topMood = topMoodKey(entries);
+    const latest = sortByRecency(entries)[0];
     return { topFamily, revisited, topMood, latest };
   }, [bank, entries]);
 
