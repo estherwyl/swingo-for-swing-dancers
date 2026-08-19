@@ -168,9 +168,9 @@ describe('Practice and map views', () => {
     expect([...practiceLanes[0].querySelectorAll('strong')].map((node) => node.textContent)).toEqual(['Old 1', 'Confidence 1', 'Old 2', 'Confidence 3']);
     expect([...practiceLanes[1].querySelectorAll('strong')].map((node) => node.textContent)).toEqual(['Social 1', 'Social 3', 'Social 2', 'Social 0']);
     expect([...practiceLanes[2].querySelectorAll('strong')].map((node) => node.textContent)).toEqual(['Confidence 1', 'Confidence 3', 'Confidence 0', 'Confidence 2']);
-    const { rerender } = render(<PracticeView bank={[]} onOpen={vi.fn()} />);
+    cleanup();
+    render(<PracticeView bank={[]} onOpen={vi.fn()} />);
     expect(screen.getAllByText('Nothing here yet.')).toHaveLength(3);
-    rerender(<PracticeView bank={makePracticeRows()} onOpen={vi.fn()} />);
   });
 
   it('renders map lanes with their predicates, five-item caps, and empty copy', () => {
