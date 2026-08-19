@@ -7,3 +7,4 @@ dist
 !public/assets/**/*.png
 .DS_Store
 npm-debug.log*
+coverage
