@@ -1,7 +1,7 @@
 import { todayStr, sortKey } from './dates.js';
 import { moodKeys } from './moods.js';
 
-function freshCheckin() {
+export function freshCheckin() {
   return {
     family: null,
     moveName: null,
@@ -16,7 +16,7 @@ function freshCheckin() {
   };
 }
 
-function seedEntries() {
+export function seedEntries() {
   const rows = [
     ['solo', 'Shorty George', 'practiced', 'proud', 'Timing felt clearer today. Starting to get the bounce.', '2026-07-10', '19:10', 'Savoy Beginners Class', 'Jasper', 'Savoy Studio'],
     ['lindy', 'Swingout', 'practiced', 'challenged', 'Keep the stretch, don’t collapse the connection.', '2026-07-09', '18:22', 'Lindy Level 2', 'Mara', 'The Hall'],
@@ -53,7 +53,7 @@ function seedEntries() {
   }));
 }
 
-function aggregateEntries(entries) {
+export function aggregateEntries(entries) {
   const groups = new Map();
   entries.forEach((entry) => {
     const key = `${entry.family}|${entry.moveName}`;
@@ -84,6 +84,3 @@ function aggregateEntries(entries) {
     };
   });
 }
-
-
-export { freshCheckin, seedEntries, aggregateEntries };

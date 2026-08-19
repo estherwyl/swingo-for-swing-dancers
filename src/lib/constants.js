@@ -1,8 +1,8 @@
-const STORAGE_KEY = 'swingo_v2';
-const COMPANION_ASSET_VERSION = '2026-08-07-white-tennis-shoes';
-const MAX_REFERENCES_PER_MOVE = 3;
+export const STORAGE_KEY = 'swingo_v2';
+export const COMPANION_ASSET_VERSION = '2026-08-07-white-tennis-shoes';
+export const MAX_REFERENCES_PER_MOVE = 3;
 
-const COMPANION_PRESETS = {
+export const COMPANION_PRESETS = {
   'dressed-up-feminine': {
     label: 'Vintage feminine',
     sub: 'Red dress, polished shoes, festival sparkle',
@@ -29,23 +29,23 @@ const COMPANION_PRESETS = {
   },
 };
 
-const COMPANION_ORDER = ['dressed-up-feminine', 'dressed-up-masculine', 'casual-feminine', 'casual-masculine'];
-const COMPANION_GENDERS = [
+export const COMPANION_ORDER = ['dressed-up-feminine', 'dressed-up-masculine', 'casual-feminine', 'casual-masculine'];
+export const COMPANION_GENDERS = [
   ['feminine', 'Female dancer'],
   ['masculine', 'Male dancer'],
 ];
-const COMPANION_STYLES = [
+export const COMPANION_STYLES = [
   ['vintage', 'Vintage'],
   ['casual', 'Casual'],
 ];
 
-const FAMILIES = {
+export const FAMILIES = {
   lindy: { label: 'Lindy Hop', color: '#E7B44C', dark: '#231708' },
   solo: { label: 'Solo Jazz', color: '#6FBF92', dark: '#08160E' },
   charleston: { label: 'Charleston', color: '#E8705C', dark: '#230B08' },
 };
 
-const STATUSES = {
+export const STATUSES = {
   first_learned: { label: 'Learned for the first time', short: 'First time', statement: 'I learned' },
   learned_again: { label: 'Learned again', short: 'Learned again', statement: 'I learned again' },
   practiced: { label: 'Practiced', short: 'Practiced', statement: 'I practiced' },
@@ -53,9 +53,9 @@ const STATUSES = {
   performed: { label: 'Performed', short: 'Performed', statement: 'I performed' },
 };
 
-const STATUS_ORDER = ['first_learned', 'learned_again', 'practiced', 'used_in_social', 'performed'];
+export const STATUS_ORDER = ['first_learned', 'learned_again', 'practiced', 'used_in_social', 'performed'];
 
-const MOODS = {
+export const MOODS = {
   proud: { label: 'Proud', color: '#E7B44C', emoji: '🥹' },
   excited: { label: 'Excited', color: '#E86C58', emoji: '🥳' },
   flowing: { label: 'Flowing', color: '#6FBF92', emoji: '😌' },
@@ -67,8 +67,8 @@ const MOODS = {
   inspired: { label: 'Inspired', color: '#E7C15A', emoji: '🤩' },
 };
 
-const MOOD_ORDER = ['proud', 'excited', 'flowing', 'inspired', 'challenged', 'angry', 'confused', 'frustrated'];
-const MOOD_COMPANION_STATE = {
+export const MOOD_ORDER = ['proud', 'excited', 'flowing', 'inspired', 'challenged', 'angry', 'confused', 'frustrated'];
+export const MOOD_COMPANION_STATE = {
   proud: 'celebrate',
   excited: 'celebrate',
   flowing: 'reflect',
@@ -80,7 +80,7 @@ const MOOD_COMPANION_STATE = {
   curious: 'reflect',
 };
 
-const TAXONOMY = {
+export const TAXONOMY = {
   lindy: [
     '6-count basic',
     '8-count basic',
@@ -153,6 +153,3 @@ const TAXONOMY = {
     'Butterfly exit',
   ],
 };
-
-
-export { STORAGE_KEY, COMPANION_ASSET_VERSION, MAX_REFERENCES_PER_MOVE, COMPANION_PRESETS, COMPANION_ORDER, COMPANION_GENDERS, COMPANION_STYLES, FAMILIES, STATUSES, STATUS_ORDER, MOODS, MOOD_ORDER, MOOD_COMPANION_STATE, TAXONOMY };

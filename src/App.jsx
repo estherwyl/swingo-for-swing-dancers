@@ -301,7 +301,7 @@ export function SetupScreen({ companionPreset, setCompanionPreset, setInviteAcce
   );
 }
 
-function JournalScreen({
+export function JournalScreen({
   entries,
   setEntries,
   entriesSorted,
@@ -637,7 +637,7 @@ function StatusStep({ checkin, setCheckin, setStep, entries, goBack }) {
   );
 }
 
-function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, moveReferences }) {
+export function MoodStep({ checkin, setCheckin, saveCheckin, goBack, companionPreset, moveReferences }) {
   const dateRef = useRef(null);
   const companionState = companionStateFromMoods(checkin.mood);
   const references = moveReferences[moveKey(checkin.family, checkin.moveName)] || [];
@@ -872,7 +872,7 @@ function DancerCompanion({ preset = 'dressed-up-feminine', state = 'reflect', si
   );
 }
 
-function MoveBankScreen({
+export function MoveBankScreen({
   bank,
   bankSearch,
   setBankSearch,
@@ -980,7 +980,7 @@ export function MoveListView({ filtered, bank, bankSearch, setBankSearch, bankFi
   );
 }
 
-function MoveMapView({ bank, onOpen }) {
+export function MoveMapView({ bank, onOpen }) {
   return (
     <section className="move-map">
       {Object.entries(FAMILIES).map(([familyKey, family]) => {
@@ -1006,7 +1006,7 @@ function MoveMapView({ bank, onOpen }) {
   );
 }
 
-function MapLane({ label, rows, onOpen }) {
+export function MapLane({ label, rows, onOpen }) {
   return (
     <div className="map-lane">
       <small>{label}</small>
@@ -1021,7 +1021,7 @@ function MapLane({ label, rows, onOpen }) {
   );
 }
 
-function PracticeView({ bank, onOpen }) {
+export function PracticeView({ bank, onOpen }) {
   const oldRows = [...bank].toSorted((a, b) => daysSince(b.latestSk.slice(0, 10)) - daysSince(a.latestSk.slice(0, 10))).slice(0, 4);
   const socialReady = bank.filter((row) => row.logs > 1 && !row.hasSocial).toSorted((a, b) => b.logs - a.logs).slice(0, 4);
   const buildConfidence = bank.filter((row) => row.logs === 1).toSorted((a, b) => a.latestSk.localeCompare(b.latestSk)).slice(0, 4);
@@ -1035,7 +1035,7 @@ function PracticeView({ bank, onOpen }) {
   );
 }
 
-function PracticeLane({ title, subtitle, rows, onOpen }) {
+export function PracticeLane({ title, subtitle, rows, onOpen }) {
   return (
     <article className="practice-lane">
       <div>
@@ -1073,7 +1073,7 @@ export function MoveBankCard({ row, onOpen }) {
   );
 }
 
-function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack, moveReferences, companionPreset }) {
+export function MoveDetailScreen({ bank, detailKey, detailFrom, setView, setDetailKey, setDetailFrom, startCheckin, goBack, moveReferences, companionPreset }) {
   const detail = bank.find((row) => row.key === detailKey) || bank[0];
   if (!detail) return null;
   const family = FAMILIES[detail.family];
@@ -1167,7 +1167,7 @@ function SummaryCell({ label, value, color }) {
   );
 }
 
-function WrappedScreen({ entries, bank, startCheckin }) {
+export function WrappedScreen({ entries, bank, startCheckin }) {
   const wrapped = useMemo(() => {
     if (!bank.length) return null;
     const familyEntries = (family) => entries.filter((entry) => entry.family === family).length;

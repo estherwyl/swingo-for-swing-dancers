@@ -1,27 +1,27 @@
 import { COMPANION_ORDER, COMPANION_PRESETS, MOODS, MOOD_COMPANION_STATE } from './constants.js';
 
-function moodKeys(value) {
+export function moodKeys(value) {
   if (Array.isArray(value)) return value.filter((key) => MOODS[key]);
   return value && MOODS[value] ? [value] : [];
 }
 
-function moodList(value) {
+export function moodList(value) {
   return moodKeys(value).map((key) => MOODS[key]);
 }
 
-function companionStateFromMoods(value) {
+export function companionStateFromMoods(value) {
   const [key] = moodKeys(value);
   return MOOD_COMPANION_STATE[key] || 'reflect';
 }
 
-function companionPresetFromChoices(gender, style) {
+export function companionPresetFromChoices(gender, style) {
   return COMPANION_ORDER.find((preset) => {
     const item = COMPANION_PRESETS[preset];
     return item.gender === gender && item.style === style;
   }) || '';
 }
 
-function companionChoicesFromPreset(preset) {
+export function companionChoicesFromPreset(preset) {
   const item = COMPANION_PRESETS[preset];
   return {
     gender: item?.gender || '',
@@ -29,14 +29,14 @@ function companionChoicesFromPreset(preset) {
   };
 }
 
-function companionCopy(state) {
+export function companionCopy(state) {
   if (state === 'celebrate') return 'This felt good. Remember what clicked.';
   if (state === 'fired-up') return 'That anger has information. Save what happened, then come back to yourself.';
   if (state === 'disappointed') return 'This one did not land the way you hoped. Keep the lesson, not the weight.';
   return 'Small details become real progress when you remember them.';
 }
 
-function companionSuccessTone(state) {
+export function companionSuccessTone(state) {
   if (state === 'celebrate') {
     return {
       title: 'Nice one!',
@@ -64,6 +64,3 @@ function companionSuccessTone(state) {
     after: 'is now part of your 2026 dance story.',
   };
 }
-
-
-export { moodKeys, moodList, companionStateFromMoods, companionPresetFromChoices, companionChoicesFromPreset, companionCopy, companionSuccessTone };

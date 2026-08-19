@@ -1,4 +1,4 @@
-function normalizeReferenceUrl(value) {
+export function normalizeReferenceUrl(value) {
   const raw = value.trim();
   if (!raw) return '';
   try {
@@ -9,7 +9,7 @@ function normalizeReferenceUrl(value) {
   }
 }
 
-function referenceDisplayName(url) {
+export function referenceDisplayName(url) {
   try {
     const { hostname } = new URL(url);
     return hostname.replace(/^www\./, '');
@@ -17,6 +17,3 @@ function referenceDisplayName(url) {
     return 'Open link';
   }
 }
-
-
-export { normalizeReferenceUrl, referenceDisplayName };
